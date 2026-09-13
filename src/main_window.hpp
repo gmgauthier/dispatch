@@ -2,8 +2,15 @@
 
 #pragma once
 
+#include "feed.hpp"
+#include "fetch.hpp"
+#include "settings.hpp"
+
 #include <gtkmm.h>
 
+#include <atomic>
+#include <mutex>
+#include <thread>
 #include <vector>
 
 namespace dispatch {
@@ -11,38 +18,65 @@ namespace dispatch {
 class MainWindow : public Gtk::Window {
  public:
   MainWindow();
+  ~MainWindow() override;
 
  private:
-  struct Headline {
+  struct Item {
     Glib::ustring subject;
     Glib::ustring date;
     Glib::ustring body;
+    Glib::ustring link;
+    bool unread = true;
+  };
+  struct PendingFetch {
+    Glib::ustring url;
+    int replace_index = -1;
+    bool select = false;
   };
   struct Feed {
+    Glib::ustring url;
     Glib::ustring name;
     int unread = 0;
-    std::vector<Headline> items;
+    std::vector<Item> items;
+  };
+  struct FetchJob {
+    Glib::ustring url;
+    int replace_index = -1;
+    ParsedFeed parsed;
+    std::string error;
   };
 
   void load_css();
   void build_menu();
   void build_toolbar();
   void build_body();
-  void load_stub_feeds();
   void fill_feeds();
   void fill_headlines();
+  void select_feed(int index);
   void show_preview();
   void open_article();
   void set_preview_visible(bool on);
   void set_status(const Glib::ustring& text);
-  void not_yet(const Glib::ustring& feature);
+  void set_busy(bool on);
+  void persist();
+  void recount(Feed& feed);
+  int total_unread() const;
+  std::string key_of(const Item& item) const;
+  void apply_read_state(Feed& feed);
+  void mark_item(int feed_index, int item_index, bool unread);
+  void request_fetch(const Glib::ustring& url, int replace_index, bool select);
+  void start_fetch(const Glib::ustring& url, int replace_index);
+  void pump_fetch_queue();
+  void on_fetch_done();
+  int find_url(const Glib::ustring& url) const;
   void on_quit();
   void on_about();
   void on_subscribe();
   void on_unsubscribe();
   void on_refresh();
+  void on_refresh_all();
   void on_mark_read();
-  void on_mark_unread();
+  void on_toggle_unread();
   void on_toggle_preview();
   void on_mail_clicked();
   void style_nav_column(Gtk::TreeView& view);
@@ -65,7 +99,7 @@ class MainWindow : public Gtk::Window {
   Gtk::Box toolbar_{Gtk::ORIENTATION_HORIZONTAL, 4};
   Gtk::Button btn_refresh_{"Refresh"};
   Gtk::Button btn_subscribe_{"Subscribe…"};
-  Gtk::Button btn_mark_read_{"Mark read"};
+  Gtk::Button btn_toggle_unread_{"Toggle Unread"};
   Gtk::RadioButton btn_mail_{"MAIL"};
   Gtk::RadioButton btn_feed_{"FEED"};
   Gtk::CheckMenuItem* view_preview_item_ = nullptr;
@@ -73,6 +107,8 @@ class MainWindow : public Gtk::Window {
 
   Gtk::Paned outer_{Gtk::ORIENTATION_HORIZONTAL};
   Gtk::Paned inner_{Gtk::ORIENTATION_VERTICAL};
+  Gtk::Frame head_frame_;
+  Gtk::Frame body_frame_;
   Gtk::ScrolledWindow feed_scroll_;
   Gtk::TreeView feed_view_;
   Gtk::ScrolledWindow headline_scroll_;
@@ -94,7 +130,10 @@ class MainWindow : public Gtk::Window {
   Gtk::TreeModelColumn<int> col_headline_index_;
   Gtk::TreeModelColumnRecord headline_cols_;
 
+  Settings settings_;
   std::vector<Feed> feeds_;
+  std::vector<PendingFetch> fetch_queue_;
+  bool select_after_fetch_ = false;
   int current_feed_ = -1;
   int current_headline_ = -1;
   Gtk::TreeModel::Path feed_current_path_;
@@ -102,6 +141,13 @@ class MainWindow : public Gtk::Window {
   Gtk::TreeModel::Path headline_current_path_;
   Gtk::TreeModel::Path headline_hover_path_;
   bool preview_visible_ = true;
+
+  Glib::Dispatcher fetch_done_;
+  sigc::connection fetch_conn_;
+  std::mutex fetch_mutex_;
+  FetchJob fetch_job_;
+  std::thread fetch_thread_;
+  std::atomic<bool> fetching_{false};
 };
 
 }  // namespace dispatch

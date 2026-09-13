@@ -12,6 +12,8 @@ project(
 )
 
 gtkmm = dependency('gtkmm-3.0')
+libxml = dependency('libxml-2.0')
+libsoup = dependency('libsoup-3.0')
 
 conf = configuration_data()
 conf.set_quoted('VERSION', meson.project_version())
@@ -34,8 +36,12 @@ executable(
   'src/main_window.cpp',
   'src/article_window.cpp',
   'src/about_dialog.cpp',
+  'src/subscribe_dialog.cpp',
+  'src/feed.cpp',
+  'src/fetch.cpp',
+  'src/settings.cpp',
   include_directories: inc,
-  dependencies: [gtkmm],
+  dependencies: [gtkmm, libxml, libsoup],
   install: true,
   install_dir: get_option('bindir'),
 )

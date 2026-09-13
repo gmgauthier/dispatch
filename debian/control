@@ -8,7 +8,9 @@ Build-Depends:
  ninja-build,
  pkg-config,
  g++,
- libgtkmm-3.0-dev
+ libgtkmm-3.0-dev,
+ libxml2-dev,
+ libsoup-3.0-dev
 Standards-Version: 4.7.0
 Homepage: https://gitea.scriptorium/gmgauthier/dispatch
 Vcs-Git: https://gitea.scriptorium/gmgauthier/dispatch.git
@@ -19,7 +21,8 @@ Package: dispatch
 Architecture: any
 Depends:
  ${misc:Depends},
- ${shlibs:Depends}
+ ${shlibs:Depends},
+ glib-networking
 Description: Outlook Express-shaped feed reader for LCOS
  Dispatch is a gtkmm-3 RSS/Atom reader whose chrome is Outlook Express:
  feeds on the left, headlines over the body, optional article window.

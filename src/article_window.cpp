@@ -15,9 +15,9 @@ ArticleWindow::ArticleWindow(const Glib::ustring& subject, const Glib::ustring& 
   auto* view = Gtk::manage(new Gtk::TextView());
   view->set_editable(false);
   view->set_wrap_mode(Gtk::WRAP_WORD_CHAR);
-  view->set_left_margin(8);
-  view->set_right_margin(8);
-  view->set_top_margin(8);
+  view->set_left_margin(10);
+  view->set_right_margin(10);
+  view->set_top_margin(10);
   view->set_bottom_margin(8);
   view->get_style_context()->add_class("dispatch-article-body");
   view->get_buffer()->set_text(body);

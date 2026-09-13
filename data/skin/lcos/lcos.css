@@ -18,6 +18,26 @@ treeview.dispatch-headlines {
   -GtkTreeView-horizontal-separator: 0;
 }
 
+treeview.dispatch-tree {
+  padding-left: 4px;
+  padding-top: 4px;
+}
+
+/* Inset the whole title list, not each row. */
+scrolledwindow.dispatch-headlines-scroll {
+  padding-left: 6px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+/* Groove between headlines and preview. */
+paned.dispatch-split > separator {
+  min-height: 6px;
+  background-color: #B4B0A8;
+  border-top: 1px solid #808080;
+  border-bottom: 1px solid #FFFFFF;
+}
+
 /* Adwaita hides unfocused :selected. We paint rows ourselves; keep text dark. */
 treeview.dispatch-tree:selected,
 treeview.dispatch-headlines:selected,

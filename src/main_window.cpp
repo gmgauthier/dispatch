@@ -4,6 +4,9 @@
 #include "about_dialog.hpp"
 #include "article_window.hpp"
 #include "paths.hpp"
+#include "subscribe_dialog.hpp"
+
+#include <glib.h>
 
 #include <iostream>
 
@@ -33,14 +36,28 @@ void paint_nav_cell(Gtk::CellRenderer* cell, const Gtk::TreeModel::Path& path,
   }
 }
 
+/* Motion/button events on the list arrive on the bin window already.
+ * get_path_at_pos wants those coords. convert_widget_to_bin_window_coords
+ * subtracts the header height a second time — one row high when headers
+ * are visible (Partyline/Read-O-Matic hide headers, so they never saw it). */
+bool path_at_bin_event(Gtk::TreeView& view, GdkWindow* win, double ex, double ey,
+                       Gtk::TreeModel::Path& path)
+{
+  auto bin = view.get_bin_window();
+  if (!bin || !win || win != bin->gobj())
+    return false;
+  Gtk::TreeViewColumn* col = nullptr;
+  int cx = 0, cy = 0;
+  return view.get_path_at_pos(static_cast<int>(ex), static_cast<int>(ey), path, col, cx, cy) &&
+         path.size() > 0;
+}
+
 bool nav_motion(Gtk::TreeView& view, Gtk::TreeModel::Path& hover, GdkEventMotion* event)
 {
+  if (!event)
+    return false;
   Gtk::TreeModel::Path path;
-  Gtk::TreeViewColumn* col = nullptr;
-  int cx = 0, cy = 0, bx = 0, by = 0;
-  view.convert_widget_to_bin_window_coords(static_cast<int>(event->x),
-                                           static_cast<int>(event->y), bx, by);
-  if (view.get_path_at_pos(bx, by, path, col, cx, cy) && path.size() > 0) {
+  if (path_at_bin_event(view, event->window, event->x, event->y, path)) {
     if (hover.size() == 0 || hover != path) {
       hover = path;
       view.queue_draw();
@@ -63,6 +80,16 @@ bool nav_leave(Gtk::TreeView& view, Gtk::TreeModel::Path& hover, GdkEventCrossin
   return false;
 }
 
+Glib::ustring u8(const std::string& raw)
+{
+  if (raw.empty() || g_utf8_validate(raw.data(), static_cast<gssize>(raw.size()), nullptr))
+    return Glib::ustring(raw);
+  gchar* v = g_utf8_make_valid(raw.data(), static_cast<gssize>(raw.size()));
+  Glib::ustring u(v ? v : "");
+  g_free(v);
+  return u;
+}
+
 }  // namespace
 
 MainWindow::MainWindow()
@@ -76,22 +103,40 @@ MainWindow::MainWindow()
   add_accel_group(accel_);
 
   load_css();
-  load_stub_feeds();
   build_menu();
   build_toolbar();
   build_body();
 
   status_ctx_ = status_.get_context_id("main");
-  set_status("3 unread   last refresh — (stub)");
+  fetch_conn_ = fetch_done_.connect(sigc::mem_fun(*this, &MainWindow::on_fetch_done));
+  signal_hide().connect(sigc::mem_fun(*this, &MainWindow::persist));
+
+  settings_.load();
+  for (const auto& saved : settings_.feeds) {
+    Feed f;
+    f.url = u8(saved.url);
+    f.name = saved.title.empty() ? f.url : u8(saved.title);
+    feeds_.push_back(std::move(f));
+  }
 
   add(root_);
   show_all();
   fill_feeds();
-  if (!feeds_.empty()) {
-    current_feed_ = 0;
-    feed_current_path_ = Gtk::TreeModel::Path("0");
-    fill_headlines();
+  if (feeds_.empty()) {
+    set_status("No feeds. Subscribe… to add a URL.");
+  } else {
+    select_feed(0);
+    set_status(Glib::ustring::compose("%1 feeds. Refreshing…", feeds_.size()));
+    on_refresh_all();
   }
+}
+
+MainWindow::~MainWindow()
+{
+  persist();
+  fetch_conn_.disconnect();
+  if (fetch_thread_.joinable())
+    fetch_thread_.join();
 }
 
 void MainWindow::load_css()
@@ -141,7 +186,7 @@ void MainWindow::build_menu()
 
   auto* edit = Gtk::manage(new Gtk::Menu());
   add_item(*edit, "Mark as _Read", sigc::mem_fun(*this, &MainWindow::on_mark_read));
-  add_item(*edit, "Mark as _Unread", sigc::mem_fun(*this, &MainWindow::on_mark_unread));
+  add_item(*edit, "_Toggle Unread", sigc::mem_fun(*this, &MainWindow::on_toggle_unread));
   add_menu("_Edit", *edit);
 
   auto* view = Gtk::manage(new Gtk::Menu());
@@ -155,7 +200,7 @@ void MainWindow::build_menu()
   auto* feeds = Gtk::manage(new Gtk::Menu());
   add_item(*feeds, "_Refresh", sigc::mem_fun(*this, &MainWindow::on_refresh), GDK_KEY_r,
            Gdk::CONTROL_MASK);
-  add_item(*feeds, "Refresh _All", sigc::mem_fun(*this, &MainWindow::on_refresh));
+  add_item(*feeds, "Refresh _All", sigc::mem_fun(*this, &MainWindow::on_refresh_all));
   add_menu("F_eeds", *feeds);
 
   auto* help = Gtk::manage(new Gtk::Menu());
@@ -168,7 +213,7 @@ void MainWindow::build_toolbar()
   toolbar_.set_border_width(4);
   toolbar_.pack_start(btn_refresh_, Gtk::PACK_SHRINK);
   toolbar_.pack_start(btn_subscribe_, Gtk::PACK_SHRINK);
-  toolbar_.pack_start(btn_mark_read_, Gtk::PACK_SHRINK);
+  toolbar_.pack_start(btn_toggle_unread_, Gtk::PACK_SHRINK);
 
   auto* spacer = Gtk::manage(new Gtk::Box());
   spacer->set_hexpand(true);
@@ -187,13 +232,14 @@ void MainWindow::build_toolbar()
 
   btn_refresh_.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_refresh));
   btn_subscribe_.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_subscribe));
-  btn_mark_read_.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_mark_read));
+  btn_toggle_unread_.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_toggle_unread));
 }
 
 void MainWindow::style_nav_column(Gtk::TreeView& view)
 {
   view.set_headers_visible(true);
   view.set_enable_search(false);
+  view.set_fixed_height_mode(true);
   view.get_selection()->set_mode(Gtk::SELECTION_NONE);
   view.add_events(Gdk::POINTER_MOTION_MASK | Gdk::LEAVE_NOTIFY_MASK | Gdk::BUTTON_PRESS_MASK);
 }
@@ -205,8 +251,32 @@ void MainWindow::build_body()
   feed_cols_.add(col_feed_index_);
   feed_store_ = Gtk::ListStore::create(feed_cols_);
   feed_view_.set_model(feed_store_);
-  feed_view_.append_column("Feeds", col_feed_name_);
-  feed_view_.append_column("", col_feed_unread_);
+  {
+    auto* name_cell = Gtk::manage(new Gtk::CellRendererText());
+    name_cell->property_weight() = Pango::WEIGHT_BOLD;
+    name_cell->property_xpad() = 8;
+    name_cell->property_ypad() = 4;
+    name_cell->property_ellipsize() = Pango::ELLIPSIZE_END;
+    feed_view_.append_column("Feeds", *name_cell);
+    if (auto* col = feed_view_.get_column(0)) {
+      col->add_attribute(*name_cell, "text", col_feed_name_);
+      col->set_sizing(Gtk::TREE_VIEW_COLUMN_FIXED);
+      col->set_expand(true);
+      col->set_min_width(60);
+    }
+    auto* unread_cell = Gtk::manage(new Gtk::CellRendererText());
+    unread_cell->property_xpad() = 6;
+    unread_cell->property_ypad() = 4;
+    unread_cell->property_xalign() = 1.0;
+    feed_view_.append_column("", *unread_cell);
+    if (auto* col = feed_view_.get_column(1)) {
+      col->add_attribute(*unread_cell, "text", col_feed_unread_);
+      col->set_sizing(Gtk::TREE_VIEW_COLUMN_FIXED);
+      col->set_expand(false);
+      col->set_fixed_width(36);
+      col->set_alignment(1.0);
+    }
+  }
   feed_view_.get_style_context()->add_class("dispatch-tree");
   style_nav_column(feed_view_);
   for (guint c = 0; c < feed_view_.get_n_columns(); ++c) {
@@ -215,18 +285,13 @@ void MainWindow::build_body()
         col->set_cell_data_func(*cell, sigc::mem_fun(*this, &MainWindow::on_feed_cell_data));
     }
   }
-  if (auto* col = feed_view_.get_column(1)) {
-    col->set_alignment(1.0);
-    if (auto* cell = dynamic_cast<Gtk::CellRendererText*>(col->get_first_cell()))
-      cell->property_xalign() = 1.0;
-  }
   feed_view_.signal_motion_notify_event().connect(
       sigc::mem_fun(*this, &MainWindow::on_feed_motion), false);
   feed_view_.signal_leave_notify_event().connect(
       sigc::mem_fun(*this, &MainWindow::on_feed_leave), false);
   feed_view_.signal_button_press_event().connect(
       sigc::mem_fun(*this, &MainWindow::on_feed_button), false);
-  feed_scroll_.set_policy(Gtk::POLICY_AUTOMATIC, Gtk::POLICY_AUTOMATIC);
+  feed_scroll_.set_policy(Gtk::POLICY_NEVER, Gtk::POLICY_AUTOMATIC);
   feed_scroll_.add(feed_view_);
   feed_scroll_.set_size_request(180, -1);
 
@@ -235,8 +300,30 @@ void MainWindow::build_body()
   headline_cols_.add(col_headline_index_);
   headline_store_ = Gtk::ListStore::create(headline_cols_);
   headline_view_.set_model(headline_store_);
-  headline_view_.append_column("Subject", col_subject_);
-  headline_view_.append_column("Date", col_date_);
+  {
+    auto* subj_cell = Gtk::manage(new Gtk::CellRendererText());
+    subj_cell->property_xpad() = 1;
+    subj_cell->property_ypad() = 1;
+    subj_cell->property_ellipsize() = Pango::ELLIPSIZE_END;
+    headline_view_.append_column("Subject", *subj_cell);
+    if (auto* col = headline_view_.get_column(0)) {
+      col->add_attribute(*subj_cell, "text", col_subject_);
+      col->set_sizing(Gtk::TREE_VIEW_COLUMN_FIXED);
+      col->set_expand(true);
+      col->set_min_width(80);
+    }
+    auto* date_cell = Gtk::manage(new Gtk::CellRendererText());
+    date_cell->property_xpad() = 1;
+    date_cell->property_ypad() = 1;
+    date_cell->property_xalign() = 1.0;
+    headline_view_.append_column("Date", *date_cell);
+    if (auto* col = headline_view_.get_column(1)) {
+      col->add_attribute(*date_cell, "text", col_date_);
+      col->set_sizing(Gtk::TREE_VIEW_COLUMN_FIXED);
+      col->set_expand(false);
+      col->set_fixed_width(108);
+    }
+  }
   headline_view_.get_style_context()->add_class("dispatch-headlines");
   style_nav_column(headline_view_);
   for (guint c = 0; c < headline_view_.get_n_columns(); ++c) {
@@ -245,8 +332,6 @@ void MainWindow::build_body()
         col->set_cell_data_func(*cell, sigc::mem_fun(*this, &MainWindow::on_headline_cell_data));
     }
   }
-  if (auto* col = headline_view_.get_column(0))
-    col->set_expand(true);
   headline_view_.signal_motion_notify_event().connect(
       sigc::mem_fun(*this, &MainWindow::on_headline_motion), false);
   headline_view_.signal_leave_notify_event().connect(
@@ -255,21 +340,28 @@ void MainWindow::build_body()
       sigc::mem_fun(*this, &MainWindow::on_headline_button), false);
   headline_view_.signal_key_press_event().connect(
       sigc::mem_fun(*this, &MainWindow::on_headline_key), false);
-  headline_scroll_.set_policy(Gtk::POLICY_AUTOMATIC, Gtk::POLICY_AUTOMATIC);
+  headline_scroll_.set_policy(Gtk::POLICY_NEVER, Gtk::POLICY_AUTOMATIC);
   headline_scroll_.add(headline_view_);
+  headline_scroll_.get_style_context()->add_class("dispatch-headlines-scroll");
 
   body_view_.set_editable(false);
   body_view_.set_wrap_mode(Gtk::WRAP_WORD_CHAR);
-  body_view_.set_left_margin(8);
-  body_view_.set_right_margin(8);
-  body_view_.set_top_margin(8);
+  body_view_.set_left_margin(10);
+  body_view_.set_right_margin(10);
+  body_view_.set_top_margin(10);
   body_view_.set_bottom_margin(8);
   body_view_.get_style_context()->add_class("dispatch-body");
   body_scroll_.set_policy(Gtk::POLICY_AUTOMATIC, Gtk::POLICY_AUTOMATIC);
   body_scroll_.add(body_view_);
 
-  inner_.pack1(headline_scroll_, true, false);
-  inner_.pack2(body_scroll_, true, false);
+  head_frame_.set_shadow_type(Gtk::SHADOW_IN);
+  head_frame_.add(headline_scroll_);
+  body_frame_.set_shadow_type(Gtk::SHADOW_IN);
+  body_frame_.add(body_scroll_);
+
+  inner_.get_style_context()->add_class("dispatch-split");
+  inner_.pack1(head_frame_, true, false);
+  inner_.pack2(body_frame_, true, false);
   inner_.set_position(220);
 
   outer_.pack1(feed_scroll_, false, false);
@@ -282,29 +374,6 @@ void MainWindow::build_body()
   root_.pack_start(status_, Gtk::PACK_SHRINK);
 }
 
-void MainWindow::load_stub_feeds()
-{
-  feeds_ = {
-      {"LWN",
-       3,
-       {{"Kernel 6.x lands in testing", "12:01",
-         "A stub item. Dispatch has no HTTP yet (M1). Double-click opens this text in a "
-         "separate article window. Links will spawn the ISO browser in M4."},
-        {"Weekly edition", "yesterday",
-         "Another stub headline from LWN. The preview pane is the Outlook Express stack: "
-         "feeds on the left, headlines over the body."},
-        {"Security leftovers", "Tue", "Third stub. Mark-read and refresh wait on M1/M2."}}},
-      {"Debian",
-       1,
-       {{"DSA-… example advisory", "11:40",
-         "Stub Debian security headline. Real fetching is M1."}}},
-      {"Lunduke",
-       0,
-       {{"Weekly…", "yesterday",
-         "Stub Lunduke Journal item. Unread count is zero on this feed."}}},
-  };
-}
-
 void MainWindow::fill_feeds()
 {
   feed_store_->clear();
@@ -315,6 +384,8 @@ void MainWindow::fill_feeds()
     (*it)[col_feed_unread_] = n > 0 ? Glib::ustring::format(n) : Glib::ustring();
     (*it)[col_feed_index_] = i;
   }
+  if (current_feed_ >= 0 && current_feed_ < static_cast<int>(feeds_.size()))
+    feed_current_path_ = Gtk::TreeModel::Path(std::to_string(current_feed_));
 }
 
 void MainWindow::fill_headlines()
@@ -335,6 +406,18 @@ void MainWindow::fill_headlines()
   }
 }
 
+void MainWindow::select_feed(int index)
+{
+  current_feed_ = index;
+  current_headline_ = -1;
+  if (index >= 0 && index < static_cast<int>(feeds_.size()))
+    feed_current_path_ = Gtk::TreeModel::Path(std::to_string(index));
+  else
+    feed_current_path_.clear();
+  fill_headlines();
+  feed_view_.queue_draw();
+}
+
 void MainWindow::show_preview()
 {
   if (current_feed_ < 0 || current_headline_ < 0)
@@ -343,6 +426,7 @@ void MainWindow::show_preview()
   if (current_headline_ >= static_cast<int>(items.size()))
     return;
   body_view_.get_buffer()->set_text(items[static_cast<size_t>(current_headline_)].body);
+  mark_item(current_feed_, current_headline_, false);
 }
 
 void MainWindow::open_article()
@@ -364,9 +448,9 @@ void MainWindow::set_preview_visible(bool on)
 {
   preview_visible_ = on;
   if (on)
-    body_scroll_.show();
+    body_frame_.show();
   else
-    body_scroll_.hide();
+    body_frame_.hide();
 }
 
 void MainWindow::set_status(const Glib::ustring& text)
@@ -375,9 +459,188 @@ void MainWindow::set_status(const Glib::ustring& text)
   status_.push(text, status_ctx_);
 }
 
-void MainWindow::not_yet(const Glib::ustring& feature)
+void MainWindow::set_busy(bool on)
 {
-  set_status(feature + " — not yet (M1).");
+  fetching_ = on;
+  btn_refresh_.set_sensitive(!on);
+  btn_subscribe_.set_sensitive(!on);
+}
+
+void MainWindow::persist()
+{
+  settings_.feeds.clear();
+  settings_.feeds.reserve(feeds_.size());
+  for (const auto& f : feeds_)
+    settings_.feeds.push_back({f.url.raw(), f.name.raw()});
+  settings_.save();
+}
+
+void MainWindow::recount(Feed& feed)
+{
+  int n = 0;
+  for (const auto& it : feed.items) {
+    if (it.unread)
+      ++n;
+  }
+  feed.unread = n;
+}
+
+int MainWindow::total_unread() const
+{
+  int n = 0;
+  for (const auto& f : feeds_)
+    n += f.unread;
+  return n;
+}
+
+std::string MainWindow::key_of(const Item& item) const
+{
+  return item_key(item.link.raw(), item.subject.raw(), item.date.raw());
+}
+
+void MainWindow::apply_read_state(Feed& feed)
+{
+  for (auto& it : feed.items)
+    it.unread = !settings_.is_read(key_of(it));
+  recount(feed);
+}
+
+void MainWindow::mark_item(int feed_index, int item_index, bool unread)
+{
+  if (feed_index < 0 || feed_index >= static_cast<int>(feeds_.size()))
+    return;
+  auto& feed = feeds_[static_cast<size_t>(feed_index)];
+  if (item_index < 0 || item_index >= static_cast<int>(feed.items.size()))
+    return;
+  auto& item = feed.items[static_cast<size_t>(item_index)];
+  if (item.unread == unread)
+    return;
+  item.unread = unread;
+  const std::string key = key_of(item);
+  if (unread)
+    settings_.mark_unread(key);
+  else
+    settings_.mark_read(key);
+  recount(feed);
+  persist();
+  fill_feeds();
+  headline_view_.queue_draw();
+  feed_view_.queue_draw();
+}
+
+int MainWindow::find_url(const Glib::ustring& url) const
+{
+  for (int i = 0; i < static_cast<int>(feeds_.size()); ++i) {
+    if (feeds_[static_cast<size_t>(i)].url == url)
+      return i;
+  }
+  return -1;
+}
+
+void MainWindow::request_fetch(const Glib::ustring& url, int replace_index, bool select)
+{
+  if (fetching_) {
+    fetch_queue_.push_back({url, replace_index, select});
+    return;
+  }
+  select_after_fetch_ = select;
+  start_fetch(url, replace_index);
+}
+
+void MainWindow::pump_fetch_queue()
+{
+  if (fetch_queue_.empty() || fetching_)
+    return;
+  const PendingFetch next = fetch_queue_.front();
+  fetch_queue_.erase(fetch_queue_.begin());
+  select_after_fetch_ = next.select;
+  start_fetch(next.url, next.replace_index);
+}
+
+void MainWindow::start_fetch(const Glib::ustring& url, int replace_index)
+{
+  set_busy(true);
+  set_status("Fetching " + url + " …");
+  if (fetch_thread_.joinable())
+    fetch_thread_.join();
+
+  {
+    std::lock_guard<std::mutex> lock(fetch_mutex_);
+    fetch_job_ = {};
+    fetch_job_.url = url;
+    fetch_job_.replace_index = replace_index;
+  }
+
+  const std::string url_raw = url.raw();
+  fetch_thread_ = std::thread([this, url_raw]() {
+    std::string err;
+    const std::string xml = http_get(url_raw, err);
+    ParsedFeed parsed;
+    if (err.empty())
+      parsed = parse_feed(xml, url_raw);
+    {
+      std::lock_guard<std::mutex> lock(fetch_mutex_);
+      if (!err.empty())
+        fetch_job_.error = err;
+      else if (!parsed.error.empty())
+        fetch_job_.error = parsed.error;
+      fetch_job_.parsed = std::move(parsed);
+    }
+    fetch_done_.emit();
+  });
+}
+
+void MainWindow::on_fetch_done()
+{
+  FetchJob job;
+  {
+    std::lock_guard<std::mutex> lock(fetch_mutex_);
+    job = fetch_job_;
+  }
+  if (fetch_thread_.joinable())
+    fetch_thread_.join();
+  set_busy(false);
+
+  int idx = job.replace_index;
+  if (!job.error.empty()) {
+    set_status("Fetch failed: " + u8(job.error));
+    pump_fetch_queue();
+    return;
+  }
+
+  Feed f;
+  f.url = job.url;
+  f.name = u8(job.parsed.title);
+  if (f.name.empty())
+    f.name = job.url;
+  f.items.reserve(job.parsed.items.size());
+  for (const auto& h : job.parsed.items) {
+    Item it;
+    it.subject = u8(h.subject);
+    it.date = u8(h.date);
+    it.body = u8(h.body);
+    it.link = u8(h.link);
+    f.items.push_back(std::move(it));
+  }
+  apply_read_state(f);
+
+  if (idx >= 0 && idx < static_cast<int>(feeds_.size())) {
+    feeds_[static_cast<size_t>(idx)] = std::move(f);
+  } else {
+    feeds_.push_back(std::move(f));
+    idx = static_cast<int>(feeds_.size()) - 1;
+  }
+  persist();
+  fill_feeds();
+  if (select_after_fetch_)
+    select_feed(idx);
+  else if (idx == current_feed_)
+    fill_headlines();
+  set_status(Glib::ustring::compose("%1 — %2 items, %3 unread",
+                                    feeds_[static_cast<size_t>(idx)].name,
+                                    feeds_[static_cast<size_t>(idx)].items.size(),
+                                    total_unread()));
+  pump_fetch_queue();
 }
 
 void MainWindow::on_quit()
@@ -393,27 +656,93 @@ void MainWindow::on_about()
 
 void MainWindow::on_subscribe()
 {
-  not_yet("Subscribe");
+  SubscribeDialog dlg(*this);
+  if (dlg.run() != Gtk::RESPONSE_OK)
+    return;
+  const Glib::ustring url = dlg.url();
+  if (url.empty()) {
+    set_status("Enter a feed URL.");
+    return;
+  }
+  int idx = find_url(url);
+  if (idx < 0) {
+    Feed f;
+    f.url = url;
+    f.name = url;
+    feeds_.push_back(std::move(f));
+    idx = static_cast<int>(feeds_.size()) - 1;
+    fill_feeds();
+    persist();
+  }
+  request_fetch(url, idx, true);
 }
 
 void MainWindow::on_unsubscribe()
 {
-  not_yet("Unsubscribe");
+  if (current_feed_ < 0 || current_feed_ >= static_cast<int>(feeds_.size())) {
+    set_status("No feed selected.");
+    return;
+  }
+  const int gone = current_feed_;
+  feeds_.erase(feeds_.begin() + gone);
+  persist();
+  fill_feeds();
+  if (feeds_.empty()) {
+    select_feed(-1);
+    set_status("No feeds. Subscribe… to add a URL.");
+    return;
+  }
+  int next = gone;
+  if (next >= static_cast<int>(feeds_.size()))
+    next = static_cast<int>(feeds_.size()) - 1;
+  select_feed(next);
+  set_status("Unsubscribed.");
 }
 
 void MainWindow::on_refresh()
 {
-  not_yet("Refresh");
+  if (current_feed_ < 0 || current_feed_ >= static_cast<int>(feeds_.size())) {
+    set_status("Subscribe to a feed first.");
+    return;
+  }
+  request_fetch(feeds_[static_cast<size_t>(current_feed_)].url, current_feed_, false);
+}
+
+void MainWindow::on_refresh_all()
+{
+  if (feeds_.empty()) {
+    set_status("Subscribe to a feed first.");
+    return;
+  }
+  for (int i = 0; i < static_cast<int>(feeds_.size()); ++i)
+    request_fetch(feeds_[static_cast<size_t>(i)].url, i, false);
 }
 
 void MainWindow::on_mark_read()
 {
-  not_yet("Mark read");
+  if (current_feed_ < 0 || current_feed_ >= static_cast<int>(feeds_.size()))
+    return;
+  if (current_headline_ >= 0) {
+    mark_item(current_feed_, current_headline_, false);
+    return;
+  }
+  auto& feed = feeds_[static_cast<size_t>(current_feed_)];
+  for (int i = 0; i < static_cast<int>(feed.items.size()); ++i)
+    mark_item(current_feed_, i, false);
 }
 
-void MainWindow::on_mark_unread()
+void MainWindow::on_toggle_unread()
 {
-  not_yet("Mark unread");
+  if (current_feed_ < 0 || current_feed_ >= static_cast<int>(feeds_.size()) ||
+      current_headline_ < 0) {
+    set_status("Select a headline.");
+    return;
+  }
+  const auto& items = feeds_[static_cast<size_t>(current_feed_)].items;
+  if (current_headline_ >= static_cast<int>(items.size()))
+    return;
+  const bool unread = items[static_cast<size_t>(current_headline_)].unread;
+  mark_item(current_feed_, current_headline_, !unread);
 }
 
 void MainWindow::on_toggle_preview()
@@ -443,6 +772,16 @@ void MainWindow::on_headline_cell_data(Gtk::CellRenderer* cell,
     return;
   paint_nav_cell(cell, headline_store_->get_path(it), headline_current_path_,
                  headline_hover_path_);
+  auto* text = dynamic_cast<Gtk::CellRendererText*>(cell);
+  if (!text)
+    return;
+  if (current_feed_ < 0 || current_feed_ >= static_cast<int>(feeds_.size()))
+    return;
+  const int i = (*it)[col_headline_index_];
+  const auto& items = feeds_[static_cast<size_t>(current_feed_)].items;
+  const bool unread = i >= 0 && i < static_cast<int>(items.size()) &&
+                      items[static_cast<size_t>(i)].unread;
+  text->property_weight() = unread ? Pango::WEIGHT_BOLD : Pango::WEIGHT_NORMAL;
 }
 
 bool MainWindow::on_feed_motion(GdkEventMotion* event)
@@ -457,19 +796,11 @@ bool MainWindow::on_feed_leave(GdkEventCrossing* event)
 
 bool MainWindow::on_feed_button(GdkEventButton* event)
 {
-  if (event && event->type != GDK_BUTTON_PRESS)
+  if (!event || event->type != GDK_BUTTON_PRESS)
     return false;
   Gtk::TreeModel::Path path;
-  Gtk::TreeViewColumn* col = nullptr;
-  int cx = 0, cy = 0;
-  int x = event ? static_cast<int>(event->x) : 0;
-  int y = event ? static_cast<int>(event->y) : 0;
-  int bx = 0, by = 0;
-  feed_view_.convert_widget_to_bin_window_coords(x, y, bx, by);
-  if (event && !feed_view_.get_path_at_pos(bx, by, path, col, cx, cy))
+  if (!path_at_bin_event(feed_view_, event->window, event->x, event->y, path))
     return false;
-  if (!event)
-    path = Gtk::TreeModel::Path("0");
   auto it = feed_store_->get_iter(path);
   if (!it)
     return false;
@@ -495,11 +826,7 @@ bool MainWindow::on_headline_button(GdkEventButton* event)
   if (!event)
     return false;
   Gtk::TreeModel::Path path;
-  Gtk::TreeViewColumn* col = nullptr;
-  int cx = 0, cy = 0, bx = 0, by = 0;
-  headline_view_.convert_widget_to_bin_window_coords(static_cast<int>(event->x),
-                                                     static_cast<int>(event->y), bx, by);
-  if (!headline_view_.get_path_at_pos(bx, by, path, col, cx, cy))
+  if (!path_at_bin_event(headline_view_, event->window, event->x, event->y, path))
     return false;
   auto it = headline_store_->get_iter(path);
   if (!it)
