@@ -12,7 +12,7 @@ Catalog note: `lcos-projects/DISPATCH.md`.
 
 ## Status (2026-09-13)
 
-**M4 — HTML subset.** Preview and article window render feed HTML (bold, italic, headings, links, lists). Images load from the feed; mp3/mp4 and other audio/video get a Play button (system handler). No landing-page scrape.
+**M5 — Polish.** Last feed, sash, preview-visible, window size in ini. Auto-refresh while open (default 15 min). Arrow keys already follow the last-clicked pane.
 
 ## 1. Locked decisions
 
@@ -59,8 +59,8 @@ Catalog note: `lcos-projects/DISPATCH.md`.
 | **M1 — One feed** | Add a URL; fetch; headlines fill; click shows body; double-click opens the article window. Done. |
 | **M2 — Subscribe list** | Several feeds persist. Unread counts. Refresh all. Done. |
 | **M3 — OPML** | Import / export. Done. |
-| **M4 — HTML subset** | Links, bold, headings, lists; images in-pane; mp3/mp4 Play via the system handler. CDATA / `type=html` in the feed. **This tree.** |
-| **M5 — Polish** | Keys, last-selected feed, sash + preview-visible in ini, interval refresh while open. |
+| **M4 — HTML subset** | Links, bold, headings, lists; images in-pane; mp3/mp4 Play via the system handler. CDATA / `type=html` in the feed. Done. |
+| **M5 — Polish** | Keys, last-selected feed, sash + preview-visible in ini, interval refresh while open. **This tree.** |
 | **M6 — Package** | `debian/`, `scripts/release.sh` → `.deb`, tarball, AppImage. Tag `v0.1.0`. |
 
 Folders, search-all-feeds, full-text search, podcasts-as-a-product, **Mail mode**: after v1. Do not fetch the item’s HTML page to invent a body.

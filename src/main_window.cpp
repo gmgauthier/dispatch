@@ -120,22 +120,30 @@ MainWindow::MainWindow()
     f.name = saved.title.empty() ? f.url : u8(saved.title);
     feeds_.push_back(std::move(f));
   }
+  if (settings_.window_w >= 400 && settings_.window_h >= 300)
+    set_default_size(settings_.window_w, settings_.window_h);
 
   add(root_);
   show_all();
+  restore_layout();
   fill_feeds();
   if (feeds_.empty()) {
     set_status("No feeds. Subscribe… to add a URL.");
   } else {
-    select_feed(0);
+    int idx = find_url(u8(settings_.last_url));
+    if (idx < 0)
+      idx = 0;
+    select_feed(idx);
     set_status(Glib::ustring::compose("%1 feeds. Refreshing…", feeds_.size()));
     on_refresh_all();
   }
+  start_refresh_timer();
 }
 
 MainWindow::~MainWindow()
 {
   persist();
+  refresh_timer_.disconnect();
   fetch_conn_.disconnect();
   if (fetch_thread_.joinable())
     fetch_thread_.join();
@@ -205,7 +213,13 @@ void MainWindow::build_menu()
   auto* feeds = Gtk::manage(new Gtk::Menu());
   add_item(*feeds, "_Refresh", sigc::mem_fun(*this, &MainWindow::on_refresh), GDK_KEY_r,
            Gdk::CONTROL_MASK);
-  add_item(*feeds, "Refresh _All", sigc::mem_fun(*this, &MainWindow::on_refresh_all));
+  add_item(*feeds, "Refresh _All", sigc::mem_fun(*this, &MainWindow::on_refresh_all), GDK_KEY_F5);
+  feeds->append(*Gtk::manage(new Gtk::SeparatorMenuItem()));
+  auto_refresh_item_ = Gtk::manage(new Gtk::CheckMenuItem("_Auto-refresh", true));
+  auto_refresh_item_->set_active(true);
+  auto_refresh_item_->signal_toggled().connect(
+      sigc::mem_fun(*this, &MainWindow::on_toggle_auto_refresh));
+  feeds->append(*auto_refresh_item_);
   add_menu("F_eeds", *feeds);
 
   auto* options = Gtk::manage(new Gtk::Menu());
@@ -498,7 +512,66 @@ void MainWindow::persist()
   settings_.feeds.reserve(feeds_.size());
   for (const auto& f : feeds_)
     settings_.feeds.push_back({f.url.raw(), f.name.raw()});
+  int w = 0, h = 0;
+  get_size(w, h);
+  if (w >= 400 && h >= 300) {
+    settings_.window_w = w;
+    settings_.window_h = h;
+  }
+  const int fs = outer_.get_position();
+  const int hs = inner_.get_position();
+  if (fs > 40)
+    settings_.feeds_sash = fs;
+  if (hs > 40)
+    settings_.headlines_sash = hs;
+  settings_.preview = preview_visible_;
+  if (current_feed_ >= 0 && current_feed_ < static_cast<int>(feeds_.size()))
+    settings_.last_url = feeds_[static_cast<size_t>(current_feed_)].url.raw();
   settings_.save();
+}
+
+void MainWindow::restore_layout()
+{
+  applying_ui_ = true;
+  if (settings_.window_w >= 400 && settings_.window_h >= 300)
+    resize(settings_.window_w, settings_.window_h);
+  if (settings_.feeds_sash > 40)
+    outer_.set_position(settings_.feeds_sash);
+  if (settings_.headlines_sash > 40)
+    inner_.set_position(settings_.headlines_sash);
+  if (view_preview_item_)
+    view_preview_item_->set_active(settings_.preview);
+  set_preview_visible(settings_.preview);
+  if (auto_refresh_item_)
+    auto_refresh_item_->set_active(settings_.refresh_minutes > 0);
+  applying_ui_ = false;
+}
+
+void MainWindow::start_refresh_timer()
+{
+  refresh_timer_.disconnect();
+  if (settings_.refresh_minutes <= 0)
+    return;
+  const unsigned sec = static_cast<unsigned>(settings_.refresh_minutes) * 60u;
+  refresh_timer_ = Glib::signal_timeout().connect_seconds(
+      [this]() {
+        if (!feeds_.empty() && !fetching_)
+          on_refresh_all();
+        return true;
+      },
+      sec);
+}
+
+int MainWindow::restore_headline(const std::string& key)
+{
+  if (key.empty() || current_feed_ < 0 || current_feed_ >= static_cast<int>(feeds_.size()))
+    return -1;
+  const auto& items = feeds_[static_cast<size_t>(current_feed_)].items;
+  for (int i = 0; i < static_cast<int>(items.size()); ++i) {
+    if (key_of(items[static_cast<size_t>(i)]) == key)
+      return i;
+  }
+  return -1;
 }
 
 void MainWindow::recount(Feed& feed)
@@ -651,6 +724,14 @@ void MainWindow::on_fetch_done()
   }
   apply_read_state(f);
 
+  std::string keep_key;
+  if (idx == current_feed_ && current_headline_ >= 0 &&
+      idx >= 0 && idx < static_cast<int>(feeds_.size())) {
+    const auto& items = feeds_[static_cast<size_t>(idx)].items;
+    if (current_headline_ < static_cast<int>(items.size()))
+      keep_key = key_of(items[static_cast<size_t>(current_headline_)]);
+  }
+
   if (idx >= 0 && idx < static_cast<int>(feeds_.size())) {
     feeds_[static_cast<size_t>(idx)] = std::move(f);
   } else {
@@ -661,8 +742,18 @@ void MainWindow::on_fetch_done()
   fill_feeds();
   if (select_after_fetch_)
     select_feed(idx);
-  else if (idx == current_feed_)
+  else if (idx == current_feed_) {
     fill_headlines();
+    const int hi = restore_headline(keep_key);
+    if (hi >= 0) {
+      current_headline_ = hi;
+      headline_current_path_ = Gtk::TreeModel::Path(std::to_string(hi));
+      const auto& items = feeds_[static_cast<size_t>(idx)].items;
+      const auto& item = items[static_cast<size_t>(hi)];
+      body_view_.load(item.html.raw(), item.link.raw(), item.enclosures);
+      headline_view_.queue_draw();
+    }
+  }
   set_status(Glib::ustring::compose("%1 — %2 items, %3 unread",
                                     feeds_[static_cast<size_t>(idx)].name,
                                     feeds_[static_cast<size_t>(idx)].items.size(),
@@ -864,6 +955,22 @@ void MainWindow::on_toggle_preview()
   if (!view_preview_item_)
     return;
   set_preview_visible(view_preview_item_->get_active());
+  if (!applying_ui_)
+    persist();
+}
+
+void MainWindow::on_toggle_auto_refresh()
+{
+  if (applying_ui_ || !auto_refresh_item_)
+    return;
+  if (auto_refresh_item_->get_active()) {
+    if (settings_.refresh_minutes <= 0)
+      settings_.refresh_minutes = 15;
+  } else {
+    settings_.refresh_minutes = 0;
+  }
+  persist();
+  start_refresh_timer();
 }
 
 void MainWindow::apply_appearance()

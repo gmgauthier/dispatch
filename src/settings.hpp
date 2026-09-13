@@ -20,6 +20,13 @@ struct Settings {
   int font_size = 12;
   int font_weight = 400;
   int palette = 1;  // 0 white, 1 eggshell, 2 dark
+  int window_w = 960;
+  int window_h = 640;
+  int feeds_sash = 200;
+  int headlines_sash = 220;
+  bool preview = true;
+  std::string last_url;
+  int refresh_minutes = 15;
 
   void load();
   void save() const;

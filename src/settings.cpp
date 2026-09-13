@@ -43,6 +43,16 @@ int get_int(Glib::KeyFile& kf, const Glib::ustring& group, const char* key, int 
   return def;
 }
 
+bool get_bool(Glib::KeyFile& kf, const Glib::ustring& group, const char* key, bool def)
+{
+  try {
+    if (kf.has_key(group, key))
+      return kf.get_boolean(group, key);
+  } catch (const Glib::Error&) {
+  }
+  return def;
+}
+
 int feed_index(const std::string& group)
 {
   if (group.compare(0, 5, "feed.") != 0)
@@ -123,6 +133,20 @@ void Settings::load()
     if (palette < 0 || palette > 2)
       palette = 1;
   }
+
+  if (kf.has_group("window")) {
+    window_w = get_int(kf, "window", "width", window_w);
+    window_h = get_int(kf, "window", "height", window_h);
+    feeds_sash = get_int(kf, "window", "feeds_sash", feeds_sash);
+    headlines_sash = get_int(kf, "window", "headlines_sash", headlines_sash);
+    preview = get_bool(kf, "window", "preview", preview);
+    last_url = get_str(kf, "window", "last_url");
+    refresh_minutes = get_int(kf, "window", "refresh_minutes", refresh_minutes);
+    if (refresh_minutes < 0)
+      refresh_minutes = 0;
+    if (refresh_minutes > 1440)
+      refresh_minutes = 1440;
+  }
 }
 
 void Settings::save() const
@@ -144,6 +168,13 @@ void Settings::save() const
   kf.set_integer("appearance", "size", font_size);
   kf.set_integer("appearance", "weight", font_weight);
   kf.set_integer("appearance", "palette", palette);
+  kf.set_integer("window", "width", window_w);
+  kf.set_integer("window", "height", window_h);
+  kf.set_integer("window", "feeds_sash", feeds_sash);
+  kf.set_integer("window", "headlines_sash", headlines_sash);
+  kf.set_boolean("window", "preview", preview);
+  kf.set_string("window", "last_url", last_url);
+  kf.set_integer("window", "refresh_minutes", refresh_minutes);
   try {
     kf.save_to_file(config_path());
   } catch (const Glib::Error&) {

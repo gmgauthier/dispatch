@@ -10,7 +10,7 @@ LCOS itself: [https://github.com/BryanLunduke/LCOS](https://github.com/BryanLund
 
 ## Status
 
-**M4 — HTML subset.** Preview renders feed HTML, images, and Play for mp3/mp4. OPML import/export. Feeds persist in `~/.config/dispatch/dispatch.ini`.
+**M5 — Polish.** Last feed, sash, preview, window size persist. Auto-refresh while open. HTML preview, OPML, Appearance.
 
 | Doc | What |
 |---|---|

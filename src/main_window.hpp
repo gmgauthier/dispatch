@@ -80,6 +80,10 @@ class MainWindow : public Gtk::Window {
   void on_export_opml();
   void on_refresh();
   void on_refresh_all();
+  void on_toggle_auto_refresh();
+  void start_refresh_timer();
+  void restore_layout();
+  int restore_headline(const std::string& key);
   void on_mark_read();
   void on_toggle_unread();
   void on_toggle_preview();
@@ -113,6 +117,7 @@ class MainWindow : public Gtk::Window {
   Gtk::RadioButton btn_mail_{"MAIL"};
   Gtk::RadioButton btn_feed_{"FEED"};
   Gtk::CheckMenuItem* view_preview_item_ = nullptr;
+  Gtk::CheckMenuItem* auto_refresh_item_ = nullptr;
   Glib::RefPtr<Gtk::AccelGroup> accel_;
 
   Gtk::Paned outer_{Gtk::ORIENTATION_HORIZONTAL};
@@ -158,6 +163,8 @@ class MainWindow : public Gtk::Window {
   FetchJob fetch_job_;
   std::thread fetch_thread_;
   std::atomic<bool> fetching_{false};
+  sigc::connection refresh_timer_;
+  bool applying_ui_ = false;
 };
 
 }  // namespace dispatch
