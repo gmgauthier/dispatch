@@ -2,8 +2,10 @@
 
 #pragma once
 
+#include "body_view.hpp"
 #include "feed.hpp"
 #include "fetch.hpp"
+#include "opml.hpp"
 #include "settings.hpp"
 
 #include <gtkmm.h>
@@ -24,8 +26,9 @@ class MainWindow : public Gtk::Window {
   struct Item {
     Glib::ustring subject;
     Glib::ustring date;
-    Glib::ustring body;
+    Glib::ustring html;
     Glib::ustring link;
+    std::vector<Enclosure> enclosures;
     bool unread = true;
   };
   struct PendingFetch {
@@ -73,11 +76,15 @@ class MainWindow : public Gtk::Window {
   void on_about();
   void on_subscribe();
   void on_unsubscribe();
+  void on_import_opml();
+  void on_export_opml();
   void on_refresh();
   void on_refresh_all();
   void on_mark_read();
   void on_toggle_unread();
   void on_toggle_preview();
+  void on_appearance();
+  void apply_appearance();
   void on_mail_clicked();
   void style_nav_column(Gtk::TreeView& view);
   void on_feed_cell_data(Gtk::CellRenderer* cell, const Gtk::TreeModel::const_iterator& it);
@@ -85,10 +92,13 @@ class MainWindow : public Gtk::Window {
   bool on_feed_motion(GdkEventMotion* event);
   bool on_feed_leave(GdkEventCrossing* event);
   bool on_feed_button(GdkEventButton* event);
+  bool on_feed_key(GdkEventKey* event);
   bool on_headline_motion(GdkEventMotion* event);
   bool on_headline_leave(GdkEventCrossing* event);
   bool on_headline_button(GdkEventButton* event);
   bool on_headline_key(GdkEventKey* event);
+  void step_feed(int delta);
+  void step_headline(int delta);
 
   Gtk::MenuItem* add_item(Gtk::Menu& menu, const Glib::ustring& label,
                           const sigc::slot<void()>& slot, guint key = 0,
@@ -114,7 +124,7 @@ class MainWindow : public Gtk::Window {
   Gtk::ScrolledWindow headline_scroll_;
   Gtk::TreeView headline_view_;
   Gtk::ScrolledWindow body_scroll_;
-  Gtk::TextView body_view_;
+  BodyView body_view_;
   Gtk::Statusbar status_;
   guint status_ctx_ = 0;
 

@@ -12,7 +12,7 @@ Catalog note: `lcos-projects/DISPATCH.md`.
 
 ## Status (2026-09-13)
 
-**M2 — Subscribe list.** `~/.config/dispatch/dispatch.ini` holds feed URLs/titles and read keys. Unread counts, bold unread headlines, Refresh All (queued). Startup reloads and refreshes.
+**M4 — HTML subset.** Preview and article window render feed HTML (bold, italic, headings, links, lists). Images load from the feed; mp3/mp4 and other audio/video get a Play button (system handler). No landing-page scrape.
 
 ## 1. Locked decisions
 
@@ -22,7 +22,7 @@ Catalog note: `lcos-projects/DISPATCH.md`.
 | Name | Dispatch. Binary `dispatch`. APP_ID `org.gmgauthier.Dispatch` |
 | Rejected | Lookout, Tabloid, Mailbox, WhatsUp |
 | Toolkit | C++17, gtkmm-3.0, GTK3 CSS, Meson |
-| Look | Feeds left, headlines **over** body. Not three columns |
+| Look | Feeds left, headlines **over** body. Not three columns. Options → Appearance (font, size, palette) like Read-O-Matic / YOLO-dex |
 | Preview | View → Preview Pane, on by default |
 | Article | Double-click / Enter opens a top-level window. Several may be open. Not MDI |
 | Mode | Toolbar far right: `[MAIL]` `[FEED]`. Feed pressed. Mail tooltip `Coming soon...` |
@@ -39,7 +39,7 @@ Catalog note: `lcos-projects/DISPATCH.md`.
 
 ```
 +------------------------------------------------------------------+
-| File  Edit  View  Feeds  Help                                    |
+| File  Edit  View  Feeds  Options  Help                           |
 +------------------------------------------------------------------+
 | [Refresh] [Subscribe…] [Toggle Unread]          [MAIL] [FEED]    |
 +------------+-----------------------------------------------------+
@@ -57,10 +57,10 @@ Catalog note: `lcos-projects/DISPATCH.md`.
 |---|---|
 | **M0 — Window** | Menus, toolbar, stacked panes, preview toggle, stub article window, About. Done. |
 | **M1 — One feed** | Add a URL; fetch; headlines fill; click shows body; double-click opens the article window. Done. |
-| **M2 — Subscribe list** | Several feeds persist. Unread counts. Refresh all. **This tree.** |
-| **M3 — OPML** | Import / export. |
-| **M4 — HTML subset** | Links, bold, paragraphs in preview *and* article window. Unwrap CDATA / `type=html` so markup in the feed actually renders. Links spawn the browser. **Not** a landing-page scrape. |
+| **M2 — Subscribe list** | Several feeds persist. Unread counts. Refresh all. Done. |
+| **M3 — OPML** | Import / export. Done. |
+| **M4 — HTML subset** | Links, bold, headings, lists; images in-pane; mp3/mp4 Play via the system handler. CDATA / `type=html` in the feed. **This tree.** |
 | **M5 — Polish** | Keys, last-selected feed, sash + preview-visible in ini, interval refresh while open. |
 | **M6 — Package** | `debian/`, `scripts/release.sh` → `.deb`, tarball, AppImage. Tag `v0.1.0`. |
 
-Folders, search-all-feeds, full-text search, podcasts, MIME/media embeds (images, enclosures), **Mail mode**: after v1. Do not fetch the item’s HTML page to invent a body.
+Folders, search-all-feeds, full-text search, podcasts-as-a-product, **Mail mode**: after v1. Do not fetch the item’s HTML page to invent a body.

@@ -94,7 +94,7 @@ std::string atom_link(xmlNodePtr entry)
   return alt.empty() ? any : alt;
 }
 
-std::string item_body(xmlNodePtr item)
+std::string item_html(xmlNodePtr item)
 {
   std::string encoded, description, content, summary;
   for (xmlNodePtr c = item ? item->children : nullptr; c; c = c->next) {
@@ -104,16 +104,11 @@ std::string item_body(xmlNodePtr item)
       encoded = node_inner_xml(c);
     else if (ieq(c->name, "description"))
       description = node_inner_xml(c);
-    else if (ieq(c->name, "content"))
+    else if (ieq(c->name, "content") && attr(c, "url").empty() && attr(c, "src").empty())
       content = node_inner_xml(c);
     else if (ieq(c->name, "summary"))
       summary = node_inner_xml(c);
   }
-  encoded = html_to_text(encoded);
-  content = html_to_text(content);
-  description = html_to_text(description);
-  summary = html_to_text(summary);
-
   std::string best;
   auto consider = [&](const std::string& t) {
     if (t.size() > best.size())
@@ -124,6 +119,65 @@ std::string item_body(xmlNodePtr item)
   consider(content);
   consider(encoded);
   return best;
+}
+
+std::string collapse_slashes(std::string url)
+{
+  const auto scheme = url.find("://");
+  size_t i = scheme == std::string::npos ? 0 : scheme + 3;
+  std::string out = url.substr(0, i);
+  bool slash = false;
+  for (; i < url.size(); ++i) {
+    if (url[i] == '/') {
+      if (!slash)
+        out.push_back('/');
+      slash = true;
+    } else {
+      slash = false;
+      out.push_back(url[i]);
+    }
+  }
+  return out;
+}
+
+void add_enclosure(Headline& h, std::string url, std::string type, std::string title)
+{
+  url = collapse_slashes(url);
+  if (url.empty())
+    return;
+  for (const auto& e : h.enclosures) {
+    if (e.url == url)
+      return;
+  }
+  h.enclosures.push_back({std::move(url), std::move(type), std::move(title)});
+}
+
+void collect_enclosures(xmlNodePtr n, Headline& h)
+{
+  for (xmlNodePtr c = n ? n->children : nullptr; c; c = c->next) {
+    if (c->type != XML_ELEMENT_NODE)
+      continue;
+    if (ieq(c->name, "enclosure"))
+      add_enclosure(h, attr(c, "url"), attr(c, "type"), {});
+    else if (ieq(c->name, "link")) {
+      const std::string rel = attr(c, "rel");
+      if (rel == "enclosure" || rel == "media")
+        add_enclosure(h, attr(c, "href"), attr(c, "type"), attr(c, "title"));
+    } else if (ieq(c->name, "content")) {
+      const std::string url = attr(c, "url").empty() ? attr(c, "src") : attr(c, "url");
+      if (!url.empty())
+        add_enclosure(h, url, attr(c, "type"), {});
+    } else if (ieq(c->name, "thumbnail") || ieq(c->name, "image")) {
+      std::string url = attr(c, "href");
+      if (url.empty())
+        url = attr(c, "url");
+      if (url.empty())
+        url = attr(c, "src");
+      if (!url.empty())
+        add_enclosure(h, url, "image/*", {});
+    }
+    collect_enclosures(c, h);
+  }
 }
 
 std::string item_date(xmlNodePtr item)
@@ -142,11 +196,12 @@ void add_item(ParsedFeed& out, xmlNodePtr item)
   Headline h;
   h.subject = html_to_text(child_text(item, "title"));
   h.date = item_date(item);
-  h.body = item_body(item);
+  h.html = item_html(item);
   h.link = child_text(item, "link");
   if (h.link.empty())
     h.link = atom_link(item);
-  if (h.subject.empty() && h.body.empty())
+  collect_enclosures(item, h);
+  if (h.subject.empty() && h.html.empty() && h.enclosures.empty())
     return;
   if (h.subject.empty())
     h.subject = "(no title)";

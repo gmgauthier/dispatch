@@ -10,7 +10,7 @@ LCOS itself: [https://github.com/BryanLunduke/LCOS](https://github.com/BryanLund
 
 ## Status
 
-**M2 — Subscribe list.** Feeds persist in `~/.config/dispatch/dispatch.ini`. Unread counts, Refresh All.
+**M4 — HTML subset.** Preview renders feed HTML, images, and Play for mp3/mp4. OPML import/export. Feeds persist in `~/.config/dispatch/dispatch.ini`.
 
 | Doc | What |
 |---|---|
@@ -20,7 +20,7 @@ LCOS itself: [https://github.com/BryanLunduke/LCOS](https://github.com/BryanLund
 ## Build
 
 ```
-sudo apt install build-essential meson ninja-build pkg-config g++ libgtkmm-3.0-dev libxml2-dev libsoup-3.0-dev
+sudo apt install build-essential meson ninja-build pkg-config g++ libgtkmm-3.0-dev libxml2-dev libsoup-3.0-dev libfontconfig1-dev
 meson setup build
 meson compile -C build
 ./build/dispatch

@@ -33,6 +33,16 @@ std::string get_str(Glib::KeyFile& kf, const Glib::ustring& group, const char* k
   return {};
 }
 
+int get_int(Glib::KeyFile& kf, const Glib::ustring& group, const char* key, int def)
+{
+  try {
+    if (kf.has_key(group, key))
+      return kf.get_integer(group, key);
+  } catch (const Glib::Error&) {
+  }
+  return def;
+}
+
 int feed_index(const std::string& group)
 {
   if (group.compare(0, 5, "feed.") != 0)
@@ -98,6 +108,21 @@ void Settings::load()
     }
   } catch (const Glib::Error&) {
   }
+
+  if (kf.has_group("appearance")) {
+    const std::string fam = get_str(kf, "appearance", "family");
+    if (!fam.empty())
+      font_family = fam;
+    font_size = get_int(kf, "appearance", "size", font_size);
+    if (font_size < 8)
+      font_size = 8;
+    if (font_size > 32)
+      font_size = 32;
+    font_weight = get_int(kf, "appearance", "weight", font_weight);
+    palette = get_int(kf, "appearance", "palette", palette);
+    if (palette < 0 || palette > 2)
+      palette = 1;
+  }
 }
 
 void Settings::save() const
@@ -115,6 +140,10 @@ void Settings::save() const
     keys.emplace_back(k);
   if (!keys.empty())
     kf.set_string_list("read", "keys", keys);
+  kf.set_string("appearance", "family", font_family);
+  kf.set_integer("appearance", "size", font_size);
+  kf.set_integer("appearance", "weight", font_weight);
+  kf.set_integer("appearance", "palette", palette);
   try {
     kf.save_to_file(config_path());
   } catch (const Glib::Error&) {

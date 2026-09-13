@@ -7,11 +7,18 @@
 
 namespace dispatch {
 
+struct Enclosure {
+  std::string url;
+  std::string type;
+  std::string title;
+};
+
 struct Headline {
   std::string subject;
   std::string date;
-  std::string body;
+  std::string html;
   std::string link;
+  std::vector<Enclosure> enclosures;
 };
 
 struct ParsedFeed {

@@ -15,7 +15,7 @@ const gsize kMaxBytes = 8u * 1024u * 1024u;
 
 }  // namespace
 
-std::string http_get(const std::string& url, std::string& error)
+std::string http_get(const std::string& url, std::string& error, GCancellable* cancel)
 {
   error.clear();
   if (url.compare(0, 7, "http://") != 0 && url.compare(0, 8, "https://") != 0) {
@@ -35,7 +35,7 @@ std::string http_get(const std::string& url, std::string& error)
   }
 
   GError* gerr = nullptr;
-  GBytes* bytes = soup_session_send_and_read(session, msg, nullptr, &gerr);
+  GBytes* bytes = soup_session_send_and_read(session, msg, cancel, &gerr);
   const guint status = soup_message_get_status(msg);
   g_object_unref(msg);
   g_object_unref(session);
@@ -61,7 +61,7 @@ std::string http_get(const std::string& url, std::string& error)
   gsize len = 0;
   const char* data = static_cast<const char*>(g_bytes_get_data(bytes, &len));
   if (len > kMaxBytes) {
-    error = "Feed larger than 8 MiB";
+    error = "Response larger than 8 MiB";
     g_bytes_unref(bytes);
     return {};
   }

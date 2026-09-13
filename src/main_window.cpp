@@ -3,6 +3,7 @@
 #include "main_window.hpp"
 #include "about_dialog.hpp"
 #include "article_window.hpp"
+#include "font_dialog.hpp"
 #include "paths.hpp"
 #include "subscribe_dialog.hpp"
 
@@ -112,6 +113,7 @@ MainWindow::MainWindow()
   signal_hide().connect(sigc::mem_fun(*this, &MainWindow::persist));
 
   settings_.load();
+  apply_appearance();
   for (const auto& saved : settings_.feeds) {
     Feed f;
     f.url = u8(saved.url);
@@ -180,6 +182,9 @@ void MainWindow::build_menu()
   add_item(*file, "_Subscribe…", sigc::mem_fun(*this, &MainWindow::on_subscribe));
   add_item(*file, "_Unsubscribe", sigc::mem_fun(*this, &MainWindow::on_unsubscribe));
   file->append(*Gtk::manage(new Gtk::SeparatorMenuItem()));
+  add_item(*file, "_Import OPML…", sigc::mem_fun(*this, &MainWindow::on_import_opml));
+  add_item(*file, "_Export OPML…", sigc::mem_fun(*this, &MainWindow::on_export_opml));
+  file->append(*Gtk::manage(new Gtk::SeparatorMenuItem()));
   add_item(*file, "E_xit", sigc::mem_fun(*this, &MainWindow::on_quit), GDK_KEY_q,
            Gdk::CONTROL_MASK);
   add_menu("_File", *file);
@@ -202,6 +207,10 @@ void MainWindow::build_menu()
            Gdk::CONTROL_MASK);
   add_item(*feeds, "Refresh _All", sigc::mem_fun(*this, &MainWindow::on_refresh_all));
   add_menu("F_eeds", *feeds);
+
+  auto* options = Gtk::manage(new Gtk::Menu());
+  add_item(*options, "_Appearance…", sigc::mem_fun(*this, &MainWindow::on_appearance));
+  add_menu("_Options", *options);
 
   auto* help = Gtk::manage(new Gtk::Menu());
   add_item(*help, "_About Dispatch", sigc::mem_fun(*this, &MainWindow::on_about));
@@ -240,8 +249,10 @@ void MainWindow::style_nav_column(Gtk::TreeView& view)
   view.set_headers_visible(true);
   view.set_enable_search(false);
   view.set_fixed_height_mode(true);
+  view.set_can_focus(true);
   view.get_selection()->set_mode(Gtk::SELECTION_NONE);
-  view.add_events(Gdk::POINTER_MOTION_MASK | Gdk::LEAVE_NOTIFY_MASK | Gdk::BUTTON_PRESS_MASK);
+  view.add_events(Gdk::POINTER_MOTION_MASK | Gdk::LEAVE_NOTIFY_MASK | Gdk::BUTTON_PRESS_MASK |
+                   Gdk::KEY_PRESS_MASK);
 }
 
 void MainWindow::build_body()
@@ -291,6 +302,8 @@ void MainWindow::build_body()
       sigc::mem_fun(*this, &MainWindow::on_feed_leave), false);
   feed_view_.signal_button_press_event().connect(
       sigc::mem_fun(*this, &MainWindow::on_feed_button), false);
+  feed_view_.signal_key_press_event().connect(
+      sigc::mem_fun(*this, &MainWindow::on_feed_key), false);
   feed_scroll_.set_policy(Gtk::POLICY_NEVER, Gtk::POLICY_AUTOMATIC);
   feed_scroll_.add(feed_view_);
   feed_scroll_.set_size_request(180, -1);
@@ -344,15 +357,27 @@ void MainWindow::build_body()
   headline_scroll_.add(headline_view_);
   headline_scroll_.get_style_context()->add_class("dispatch-headlines-scroll");
 
-  body_view_.set_editable(false);
-  body_view_.set_wrap_mode(Gtk::WRAP_WORD_CHAR);
-  body_view_.set_left_margin(10);
-  body_view_.set_right_margin(10);
-  body_view_.set_top_margin(10);
-  body_view_.set_bottom_margin(8);
-  body_view_.get_style_context()->add_class("dispatch-body");
   body_scroll_.set_policy(Gtk::POLICY_AUTOMATIC, Gtk::POLICY_AUTOMATIC);
   body_scroll_.add(body_view_);
+  body_view_.set_can_focus(true);
+  feed_scroll_.signal_button_press_event().connect(
+      [this](GdkEventButton*) {
+        feed_view_.grab_focus();
+        return false;
+      },
+      false);
+  headline_scroll_.signal_button_press_event().connect(
+      [this](GdkEventButton*) {
+        headline_view_.grab_focus();
+        return false;
+      },
+      false);
+  body_scroll_.signal_button_press_event().connect(
+      [this](GdkEventButton*) {
+        body_view_.grab_focus();
+        return false;
+      },
+      false);
 
   head_frame_.set_shadow_type(Gtk::SHADOW_IN);
   head_frame_.add(headline_scroll_);
@@ -394,7 +419,7 @@ void MainWindow::fill_headlines()
   headline_current_path_.clear();
   headline_hover_path_.clear();
   current_headline_ = -1;
-  body_view_.get_buffer()->set_text("");
+  body_view_.load({}, {}, {});
   if (current_feed_ < 0 || current_feed_ >= static_cast<int>(feeds_.size()))
     return;
   const auto& items = feeds_[static_cast<size_t>(current_feed_)].items;
@@ -425,7 +450,8 @@ void MainWindow::show_preview()
   const auto& items = feeds_[static_cast<size_t>(current_feed_)].items;
   if (current_headline_ >= static_cast<int>(items.size()))
     return;
-  body_view_.get_buffer()->set_text(items[static_cast<size_t>(current_headline_)].body);
+  const auto& item = items[static_cast<size_t>(current_headline_)];
+  body_view_.load(item.html.raw(), item.link.raw(), item.enclosures);
   mark_item(current_feed_, current_headline_, false);
 }
 
@@ -437,7 +463,7 @@ void MainWindow::open_article()
   if (current_headline_ >= static_cast<int>(items.size()))
     return;
   const auto& h = items[static_cast<size_t>(current_headline_)];
-  auto* win = new ArticleWindow(h.subject, h.body);
+  auto* win = new ArticleWindow(h.subject, h.html.raw(), h.link.raw(), h.enclosures);
   if (auto app = get_application())
     app->add_window(*win);
   win->signal_hide().connect([win]() { delete win; });
@@ -618,8 +644,9 @@ void MainWindow::on_fetch_done()
     Item it;
     it.subject = u8(h.subject);
     it.date = u8(h.date);
-    it.body = u8(h.body);
+    it.html = u8(h.html);
     it.link = u8(h.link);
+    it.enclosures = h.enclosures;
     f.items.push_back(std::move(it));
   }
   apply_read_state(f);
@@ -699,6 +726,93 @@ void MainWindow::on_unsubscribe()
   set_status("Unsubscribed.");
 }
 
+void MainWindow::on_import_opml()
+{
+  Gtk::FileChooserDialog dlg(*this, "Import OPML", Gtk::FILE_CHOOSER_ACTION_OPEN);
+  dlg.add_button("_Cancel", Gtk::RESPONSE_CANCEL);
+  dlg.add_button("_Open", Gtk::RESPONSE_OK);
+  auto opml = Gtk::FileFilter::create();
+  opml->set_name("OPML");
+  opml->add_pattern("*.opml");
+  opml->add_pattern("*.xml");
+  dlg.add_filter(opml);
+  auto all = Gtk::FileFilter::create();
+  all->set_name("All files");
+  all->add_pattern("*");
+  dlg.add_filter(all);
+  if (dlg.run() != Gtk::RESPONSE_OK)
+    return;
+
+  std::string err;
+  const auto outlines = parse_opml_file(dlg.get_filename(), err);
+  if (!err.empty() && outlines.empty()) {
+    set_status("Import failed: " + u8(err));
+    return;
+  }
+
+  int added = 0;
+  int skipped = 0;
+  int first_new = -1;
+  for (const auto& o : outlines) {
+    if (o.url.compare(0, 7, "http://") != 0 && o.url.compare(0, 8, "https://") != 0) {
+      ++skipped;
+      continue;
+    }
+    const Glib::ustring url = u8(o.url);
+    if (find_url(url) >= 0) {
+      ++skipped;
+      continue;
+    }
+    Feed f;
+    f.url = url;
+    f.name = o.title.empty() ? url : u8(o.title);
+    feeds_.push_back(std::move(f));
+    const int idx = static_cast<int>(feeds_.size()) - 1;
+    if (first_new < 0)
+      first_new = idx;
+    ++added;
+    request_fetch(url, idx, false);
+  }
+  persist();
+  fill_feeds();
+  if (first_new >= 0)
+    select_feed(first_new);
+  if (added == 0)
+    set_status(skipped ? "Import: nothing new." : "Import: no feeds found.");
+  else
+    set_status(Glib::ustring::compose("Imported %1 feed(s), skipped %2.", added, skipped));
+}
+
+void MainWindow::on_export_opml()
+{
+  if (feeds_.empty()) {
+    set_status("Nothing to export.");
+    return;
+  }
+  Gtk::FileChooserDialog dlg(*this, "Export OPML", Gtk::FILE_CHOOSER_ACTION_SAVE);
+  dlg.set_do_overwrite_confirmation(true);
+  dlg.set_current_name("subscriptions.opml");
+  dlg.add_button("_Cancel", Gtk::RESPONSE_CANCEL);
+  dlg.add_button("_Save", Gtk::RESPONSE_OK);
+  auto opml = Gtk::FileFilter::create();
+  opml->set_name("OPML");
+  opml->add_pattern("*.opml");
+  dlg.add_filter(opml);
+  if (dlg.run() != Gtk::RESPONSE_OK)
+    return;
+
+  std::vector<OpmlOutline> outlines;
+  outlines.reserve(feeds_.size());
+  for (const auto& f : feeds_)
+    outlines.push_back({f.url.raw(), f.name.raw()});
+  std::string err;
+  if (!write_opml_file(dlg.get_filename(), outlines, err)) {
+    set_status("Export failed: " + u8(err));
+    return;
+  }
+  set_status(Glib::ustring::compose("Exported %1 feed(s).", outlines.size()));
+}
+
 void MainWindow::on_refresh()
 {
   if (current_feed_ < 0 || current_feed_ >= static_cast<int>(feeds_.size())) {
@@ -752,6 +866,19 @@ void MainWindow::on_toggle_preview()
   set_preview_visible(view_preview_item_->get_active());
 }
 
+void MainWindow::apply_appearance()
+{
+  BodyView::apply_all(settings_.font_family, settings_.font_size, settings_.font_weight,
+                      settings_.palette);
+}
+
+void MainWindow::on_appearance()
+{
+  FontDialog dlg(*this, settings_, [this]() { apply_appearance(); });
+  if (dlg.run() == Gtk::RESPONSE_OK)
+    persist();
+}
+
 void MainWindow::on_mail_clicked()
 {
   btn_feed_.set_active(true);
@@ -794,10 +921,56 @@ bool MainWindow::on_feed_leave(GdkEventCrossing* event)
   return nav_leave(feed_view_, feed_hover_path_, event);
 }
 
+void MainWindow::step_feed(int delta)
+{
+  if (feeds_.empty())
+    return;
+  int i = current_feed_;
+  if (i < 0)
+    i = delta >= 0 ? 0 : static_cast<int>(feeds_.size()) - 1;
+  else
+    i += delta;
+  if (i < 0)
+    i = 0;
+  if (i >= static_cast<int>(feeds_.size()))
+    i = static_cast<int>(feeds_.size()) - 1;
+  select_feed(i);
+  if (feed_current_path_.size() > 0) {
+    if (auto* col = feed_view_.get_column(0))
+      feed_view_.scroll_to_cell(feed_current_path_, *col);
+  }
+  feed_view_.queue_draw();
+}
+
+void MainWindow::step_headline(int delta)
+{
+  if (current_feed_ < 0 || current_feed_ >= static_cast<int>(feeds_.size()))
+    return;
+  const auto& items = feeds_[static_cast<size_t>(current_feed_)].items;
+  if (items.empty())
+    return;
+  int i = current_headline_;
+  if (i < 0)
+    i = delta >= 0 ? 0 : static_cast<int>(items.size()) - 1;
+  else
+    i += delta;
+  if (i < 0)
+    i = 0;
+  if (i >= static_cast<int>(items.size()))
+    i = static_cast<int>(items.size()) - 1;
+  current_headline_ = i;
+  headline_current_path_ = Gtk::TreeModel::Path(std::to_string(i));
+  show_preview();
+  if (auto* col = headline_view_.get_column(0))
+    headline_view_.scroll_to_cell(headline_current_path_, *col);
+  headline_view_.queue_draw();
+}
+
 bool MainWindow::on_feed_button(GdkEventButton* event)
 {
   if (!event || event->type != GDK_BUTTON_PRESS)
     return false;
+  feed_view_.grab_focus();
   Gtk::TreeModel::Path path;
   if (!path_at_bin_event(feed_view_, event->window, event->x, event->y, path))
     return false;
@@ -825,6 +998,8 @@ bool MainWindow::on_headline_button(GdkEventButton* event)
 {
   if (!event)
     return false;
+  if (event->type == GDK_BUTTON_PRESS)
+    headline_view_.grab_focus();
   Gtk::TreeModel::Path path;
   if (!path_at_bin_event(headline_view_, event->window, event->x, event->y, path))
     return false;
@@ -842,6 +1017,43 @@ bool MainWindow::on_headline_button(GdkEventButton* event)
   return event->type == GDK_BUTTON_PRESS;
 }
 
+bool MainWindow::on_feed_key(GdkEventKey* event)
+{
+  if (!event)
+    return false;
+  const int n = static_cast<int>(feeds_.size());
+  switch (event->keyval) {
+    case GDK_KEY_Up:
+    case GDK_KEY_KP_Up:
+      step_feed(-1);
+      return true;
+    case GDK_KEY_Down:
+    case GDK_KEY_KP_Down:
+      step_feed(1);
+      return true;
+    case GDK_KEY_Page_Up:
+    case GDK_KEY_KP_Page_Up:
+      step_feed(-8);
+      return true;
+    case GDK_KEY_Page_Down:
+    case GDK_KEY_KP_Page_Down:
+      step_feed(8);
+      return true;
+    case GDK_KEY_Home:
+    case GDK_KEY_KP_Home:
+      if (n > 0)
+        step_feed(-n);
+      return true;
+    case GDK_KEY_End:
+    case GDK_KEY_KP_End:
+      if (n > 0)
+        step_feed(n);
+      return true;
+    default:
+      return false;
+  }
+}
+
 bool MainWindow::on_headline_key(GdkEventKey* event)
 {
   if (!event)
@@ -850,7 +1062,39 @@ bool MainWindow::on_headline_key(GdkEventKey* event)
     open_article();
     return true;
   }
-  return false;
+  int n = 0;
+  if (current_feed_ >= 0 && current_feed_ < static_cast<int>(feeds_.size()))
+    n = static_cast<int>(feeds_[static_cast<size_t>(current_feed_)].items.size());
+  switch (event->keyval) {
+    case GDK_KEY_Up:
+    case GDK_KEY_KP_Up:
+      step_headline(-1);
+      return true;
+    case GDK_KEY_Down:
+    case GDK_KEY_KP_Down:
+      step_headline(1);
+      return true;
+    case GDK_KEY_Page_Up:
+    case GDK_KEY_KP_Page_Up:
+      step_headline(-8);
+      return true;
+    case GDK_KEY_Page_Down:
+    case GDK_KEY_KP_Page_Down:
+      step_headline(8);
+      return true;
+    case GDK_KEY_Home:
+    case GDK_KEY_KP_Home:
+      if (n > 0)
+        step_headline(-n);
+      return true;
+    case GDK_KEY_End:
+    case GDK_KEY_KP_End:
+      if (n > 0)
+        step_headline(n);
+      return true;
+    default:
+      return false;
+  }
 }
 
 }  // namespace dispatch

@@ -18,7 +18,7 @@ sudo apt install libgtkmm-3.0-1t64
 ## Git build
 
 ```
-sudo apt install build-essential meson ninja-build pkg-config g++ libgtkmm-3.0-dev libxml2-dev libsoup-3.0-dev
+sudo apt install build-essential meson ninja-build pkg-config g++ libgtkmm-3.0-dev libxml2-dev libsoup-3.0-dev libfontconfig1-dev
 meson setup build
 meson compile -C build
 ./build/dispatch

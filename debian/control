@@ -10,7 +10,8 @@ Build-Depends:
  g++,
  libgtkmm-3.0-dev,
  libxml2-dev,
- libsoup-3.0-dev
+ libsoup-3.0-dev,
+ libfontconfig1-dev
 Standards-Version: 4.7.0
 Homepage: https://gitea.scriptorium/gmgauthier/dispatch
 Vcs-Git: https://gitea.scriptorium/gmgauthier/dispatch.git

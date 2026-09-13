@@ -14,6 +14,7 @@ project(
 gtkmm = dependency('gtkmm-3.0')
 libxml = dependency('libxml-2.0')
 libsoup = dependency('libsoup-3.0')
+fontconfig = dependency('fontconfig')
 
 conf = configuration_data()
 conf.set_quoted('VERSION', meson.project_version())
@@ -40,8 +41,11 @@ executable(
   'src/feed.cpp',
   'src/fetch.cpp',
   'src/settings.cpp',
+  'src/opml.cpp',
+  'src/body_view.cpp',
+  'src/font_dialog.cpp',
   include_directories: inc,
-  dependencies: [gtkmm, libxml, libsoup],
+  dependencies: [gtkmm, libxml, libsoup, fontconfig],
   install: true,
   install_dir: get_option('bindir'),
 )

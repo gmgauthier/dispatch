@@ -16,6 +16,10 @@ struct SavedFeed {
 struct Settings {
   std::vector<SavedFeed> feeds;
   std::set<std::string> read;
+  std::string font_family = "Sans";
+  int font_size = 12;
+  int font_weight = 400;
+  int palette = 1;  // 0 white, 1 eggshell, 2 dark
 
   void load();
   void save() const;
