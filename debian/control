@@ -1,0 +1,26 @@
+Source: dispatch
+Section: net
+Priority: optional
+Maintainer: Greg Gauthier <gmgauthier@protonmail.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ meson (>= 0.56),
+ ninja-build,
+ pkg-config,
+ g++,
+ libgtkmm-3.0-dev
+Standards-Version: 4.7.0
+Homepage: https://gitea.scriptorium/gmgauthier/dispatch
+Vcs-Git: https://gitea.scriptorium/gmgauthier/dispatch.git
+Vcs-Browser: https://gitea.scriptorium/gmgauthier/dispatch
+Rules-Requires-Root: no
+
+Package: dispatch
+Architecture: any
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends}
+Description: Outlook Express-shaped feed reader for LCOS
+ Dispatch is a gtkmm-3 RSS/Atom reader whose chrome is Outlook Express:
+ feeds on the left, headlines over the body, optional article window.
+ Mail is a later mode of this window.

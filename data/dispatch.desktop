@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Dispatch
+Comment=An Outlook Express-shaped feed reader for The Lunduke Computer Operating System
+Exec=dispatch
+Icon=dispatch
+Terminal=false
+Hidden=false
+Categories=GTK;Network;News;
+StartupWMClass=dispatch
+StartupNotify=true

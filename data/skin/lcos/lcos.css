@@ -1,0 +1,47 @@
+/* Dispatch lcos skin — GTK3 CSS.
+ * Decorations stay with Clearlooks / Phenix. We only tint the client.
+ */
+
+window.dispatch-window,
+window.dispatch-article {
+  background-color: #E6E6E1;
+}
+
+.dispatch-tree,
+.dispatch-headlines {
+  background-color: #FFFFFF;
+  color: #000000;
+}
+
+treeview.dispatch-tree,
+treeview.dispatch-headlines {
+  -GtkTreeView-horizontal-separator: 0;
+}
+
+/* Adwaita hides unfocused :selected. We paint rows ourselves; keep text dark. */
+treeview.dispatch-tree:selected,
+treeview.dispatch-headlines:selected,
+treeview.dispatch-tree:selected:focus,
+treeview.dispatch-headlines:selected:focus {
+  color: #000000;
+}
+
+.dispatch-body,
+.dispatch-body text,
+.dispatch-article-body,
+.dispatch-article-body text {
+  background-color: #FFFFFF;
+  color: #1A1A1A;
+}
+
+.dispatch-body text selection,
+textview.dispatch-body text selection,
+.dispatch-article-body text selection,
+textview.dispatch-article-body text selection {
+  background-color: #3D6AA8;
+  color: #FFFFFF;
+}
+
+statusbar {
+  background-color: #D4D0C8;
+}

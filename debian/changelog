@@ -1,0 +1,6 @@
+dispatch (0.1.0-1) unstable; urgency=medium
+
+  * Initial package. gtkmm-3 Outlook Express-shaped feed reader for LCOS
+    (milestone M0 — window only).
+
+ -- Greg Gauthier <gmgauthier@protonmail.com>  Sun, 13 Sep 2026 11:10:00 +0100
