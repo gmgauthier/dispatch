@@ -10,11 +10,11 @@ LCOS itself: [https://github.com/BryanLunduke/LCOS](https://github.com/BryanLund
 
 ## Status
 
-**M5 — Polish.** Last feed, sash, preview, window size persist. Auto-refresh while open. HTML preview, OPML, Appearance.
+**v0.1.0.** Outlook Express-shaped RSS/Atom reader: stacked panes, OPML, HTML preview, Play for audio/video, Appearance, auto-refresh. See [INSTALL.md](INSTALL.md).
 
 | Doc | What |
 |---|---|
-| [INSTALL.md](INSTALL.md) | git build (packaging is M6) |
+| [INSTALL.md](INSTALL.md) | `.deb`, tarball, AppImage, git build |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Locked decisions, architecture, milestones M0–M6 |
 
 ## Build
