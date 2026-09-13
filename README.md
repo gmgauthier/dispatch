@@ -2,11 +2,15 @@
 
 **Vended by Grok Build**
 
+![Dispatch on LCOS](brand/screenshot-feed.png)
+
 An **Outlook Express-shaped** feed reader for The Lunduke Computer Operating System (LCOS). v1 is RSS 2 / Atom. Mail is a later mode of this same window.
 
 Binary: `dispatch`. Unlicense.
 
 LCOS itself: [https://github.com/BryanLunduke/LCOS](https://github.com/BryanLunduke/LCOS)
+
+![About Dispatch](brand/screenshot-about.png)
 
 ## Status
 
