@@ -49,8 +49,8 @@ std::string xml_prop(xmlNode* n, const char* key)
 
 bool skip_tag(const std::string& name)
 {
-  return name == "script" || name == "style" || name == "svg" || name == "head" ||
-         name == "meta" || name == "link" || name == "title" || name == "noscript";
+  return name == "script" || name == "style" || name == "svg" || name == "head" || name == "meta" ||
+         name == "link" || name == "title" || name == "noscript";
 }
 
 std::string url_path(const std::string& url)
@@ -370,10 +370,10 @@ void BodyView::load(const std::string& html, const std::string& base_url,
     return;
 
   const std::string wrapped = "<div>" + html + "</div>";
-  xmlDoc* doc = htmlReadMemory(wrapped.data(), static_cast<int>(wrapped.size()), "item.html",
-                               "UTF-8",
-                               HTML_PARSE_RECOVER | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING |
-                                   HTML_PARSE_NONET | HTML_PARSE_NOBLANKS);
+  xmlDoc* doc =
+      htmlReadMemory(wrapped.data(), static_cast<int>(wrapped.size()), "item.html", "UTF-8",
+                     HTML_PARSE_RECOVER | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING |
+                         HTML_PARSE_NONET | HTML_PARSE_NOBLANKS);
   if (doc) {
     xmlNode* root = xmlDocGetRootElement(doc);
     std::function<xmlNode*(xmlNode*)> find_body = [&](xmlNode* n) -> xmlNode* {
@@ -724,7 +724,8 @@ void BodyView::walk(xmlNode* node, int list_depth)
           s.find("odysee") != std::string::npos || s.find("vimeo") != std::string::npos ||
           s.find("lbry") != std::string::npos)
         kind = "video";
-      else if (s.find("anchor.fm") != std::string::npos || s.find("soundcloud") != std::string::npos)
+      else if (s.find("anchor.fm") != std::string::npos ||
+               s.find("soundcloud") != std::string::npos)
         kind = "audio";
       insert_media_button(src, kind);
       continue;

@@ -319,8 +319,7 @@ std::string html_to_text(const std::string& html)
         return std::string(1, static_cast<char>(n));
       /* UTF-8 BMP */
       if (n < 0x800) {
-        char buf[2] = {static_cast<char>(0xC0 | (n >> 6)),
-                       static_cast<char>(0x80 | (n & 0x3F))};
+        char buf[2] = {static_cast<char>(0xC0 | (n >> 6)), static_cast<char>(0x80 | (n & 0x3F))};
         return std::string(buf, 2);
       }
       char buf[3] = {static_cast<char>(0xE0 | (n >> 12)),
@@ -434,9 +433,10 @@ ParsedFeed parse_feed(const std::string& xml, const std::string& fallback_title)
     out.error = "Empty document";
     return out;
   }
-  xmlDocPtr doc = xmlReadMemory(xml.data(), static_cast<int>(xml.size()), fallback_title.c_str(),
-                                nullptr, XML_PARSE_NONET | XML_PARSE_NOERROR | XML_PARSE_NOWARNING |
-                                             XML_PARSE_RECOVER | XML_PARSE_NOBLANKS);
+  xmlDocPtr doc =
+      xmlReadMemory(xml.data(), static_cast<int>(xml.size()), fallback_title.c_str(), nullptr,
+                    XML_PARSE_NONET | XML_PARSE_NOERROR | XML_PARSE_NOWARNING | XML_PARSE_RECOVER |
+                        XML_PARSE_NOBLANKS);
   if (!doc) {
     out.error = "Not XML (RSS or Atom)";
     return out;

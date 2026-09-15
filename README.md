@@ -19,16 +19,18 @@ LCOS itself: [https://github.com/BryanLunduke/LCOS](https://github.com/BryanLund
 | Doc | What |
 |---|---|
 | [INSTALL.md](INSTALL.md) | `.deb`, tarball, AppImage, git build |
-| [DEVELOPMENT.md](DEVELOPMENT.md) | Locked decisions, architecture, milestones M0–M6 |
+| [DEVELOPMENT.md](DEVELOPMENT.md) | Locked decisions, architecture, milestones M0–M6, branching, semver, lint |
 
 ## Build
 
 ```
-sudo apt install build-essential meson ninja-build pkg-config g++ libgtkmm-3.0-dev libxml2-dev libsoup-3.0-dev libfontconfig1-dev
+sudo apt install build-essential meson ninja-build pkg-config g++ libgtkmm-3.0-dev libxml2-dev libsoup-3.0-dev libfontconfig1-dev clang-format cppcheck
 meson setup build
 meson compile -C build
 ./build/dispatch
 ```
+
+PR lint gate: `./scripts/lint.sh` (CI runs this; no `--fix`). Format `src/` locally with `./scripts/lint.sh --fix`.
 
 ## License
 

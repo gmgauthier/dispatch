@@ -62,9 +62,9 @@ std::vector<OpmlOutline> parse_opml_file(const std::string& path, std::string& e
 {
   error.clear();
   std::vector<OpmlOutline> out;
-  xmlDocPtr doc = xmlReadFile(path.c_str(), nullptr,
-                              XML_PARSE_NONET | XML_PARSE_NOERROR | XML_PARSE_NOWARNING |
-                                  XML_PARSE_RECOVER);
+  xmlDocPtr doc =
+      xmlReadFile(path.c_str(), nullptr,
+                  XML_PARSE_NONET | XML_PARSE_NOERROR | XML_PARSE_NOWARNING | XML_PARSE_RECOVER);
   if (!doc) {
     error = "Not OPML";
     return out;
