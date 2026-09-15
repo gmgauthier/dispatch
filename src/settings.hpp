@@ -35,7 +35,6 @@ struct Settings {
   void mark_unread(const std::string& key);
 };
 
-std::string item_key(const std::string& link, const std::string& subject,
-                     const std::string& date);
+std::string item_key(const std::string& link, const std::string& subject, const std::string& date);
 
 }  // namespace dispatch

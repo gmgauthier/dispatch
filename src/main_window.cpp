@@ -159,8 +159,8 @@ void MainWindow::load_css()
   try {
     auto css = Gtk::CssProvider::create();
     css->load_from_path(css_path);
-    Gtk::StyleContext::add_provider_for_screen(
-        Gdk::Screen::get_default(), css, GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    Gtk::StyleContext::add_provider_for_screen(Gdk::Screen::get_default(), css,
+                                               GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
   } catch (const Glib::Error& e) {
     std::cerr << "dispatch: CSS: " << e.what() << "\n";
   }
@@ -266,7 +266,7 @@ void MainWindow::style_nav_column(Gtk::TreeView& view)
   view.set_can_focus(true);
   view.get_selection()->set_mode(Gtk::SELECTION_NONE);
   view.add_events(Gdk::POINTER_MOTION_MASK | Gdk::LEAVE_NOTIFY_MASK | Gdk::BUTTON_PRESS_MASK |
-                   Gdk::KEY_PRESS_MASK);
+                  Gdk::KEY_PRESS_MASK);
 }
 
 void MainWindow::build_body()
@@ -310,14 +310,14 @@ void MainWindow::build_body()
         col->set_cell_data_func(*cell, sigc::mem_fun(*this, &MainWindow::on_feed_cell_data));
     }
   }
-  feed_view_.signal_motion_notify_event().connect(
-      sigc::mem_fun(*this, &MainWindow::on_feed_motion), false);
-  feed_view_.signal_leave_notify_event().connect(
-      sigc::mem_fun(*this, &MainWindow::on_feed_leave), false);
-  feed_view_.signal_button_press_event().connect(
-      sigc::mem_fun(*this, &MainWindow::on_feed_button), false);
-  feed_view_.signal_key_press_event().connect(
-      sigc::mem_fun(*this, &MainWindow::on_feed_key), false);
+  feed_view_.signal_motion_notify_event().connect(sigc::mem_fun(*this, &MainWindow::on_feed_motion),
+                                                  false);
+  feed_view_.signal_leave_notify_event().connect(sigc::mem_fun(*this, &MainWindow::on_feed_leave),
+                                                 false);
+  feed_view_.signal_button_press_event().connect(sigc::mem_fun(*this, &MainWindow::on_feed_button),
+                                                 false);
+  feed_view_.signal_key_press_event().connect(sigc::mem_fun(*this, &MainWindow::on_feed_key),
+                                              false);
   feed_scroll_.set_policy(Gtk::POLICY_NEVER, Gtk::POLICY_AUTOMATIC);
   feed_scroll_.add(feed_view_);
   feed_scroll_.set_size_request(180, -1);
@@ -725,8 +725,8 @@ void MainWindow::on_fetch_done()
   apply_read_state(f);
 
   std::string keep_key;
-  if (idx == current_feed_ && current_headline_ >= 0 &&
-      idx >= 0 && idx < static_cast<int>(feeds_.size())) {
+  if (idx == current_feed_ && current_headline_ >= 0 && idx >= 0 &&
+      idx < static_cast<int>(feeds_.size())) {
     const auto& items = feeds_[static_cast<size_t>(idx)].items;
     if (current_headline_ < static_cast<int>(items.size()))
       keep_key = key_of(items[static_cast<size_t>(current_headline_)]);
@@ -756,8 +756,7 @@ void MainWindow::on_fetch_done()
   }
   set_status(Glib::ustring::compose("%1 — %2 items, %3 unread",
                                     feeds_[static_cast<size_t>(idx)].name,
-                                    feeds_[static_cast<size_t>(idx)].items.size(),
-                                    total_unread()));
+                                    feeds_[static_cast<size_t>(idx)].items.size(), total_unread()));
   pump_fetch_queue();
 }
 
@@ -1004,8 +1003,7 @@ void MainWindow::on_headline_cell_data(Gtk::CellRenderer* cell,
 {
   if (!it)
     return;
-  paint_nav_cell(cell, headline_store_->get_path(it), headline_current_path_,
-                 headline_hover_path_);
+  paint_nav_cell(cell, headline_store_->get_path(it), headline_current_path_, headline_hover_path_);
   auto* text = dynamic_cast<Gtk::CellRendererText*>(cell);
   if (!text)
     return;
@@ -1013,8 +1011,8 @@ void MainWindow::on_headline_cell_data(Gtk::CellRenderer* cell,
     return;
   const int i = (*it)[col_headline_index_];
   const auto& items = feeds_[static_cast<size_t>(current_feed_)].items;
-  const bool unread = i >= 0 && i < static_cast<int>(items.size()) &&
-                      items[static_cast<size_t>(i)].unread;
+  const bool unread =
+      i >= 0 && i < static_cast<int>(items.size()) && items[static_cast<size_t>(i)].unread;
   text->property_weight() = unread ? Pango::WEIGHT_BOLD : Pango::WEIGHT_NORMAL;
 }
 
