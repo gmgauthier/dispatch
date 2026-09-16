@@ -1,3 +1,9 @@
+dispatch (0.1.1-1) unstable; urgency=medium
+
+  * Standardize GTK theming for LCOS: Clearlooks-Phenix, then Clearlooks, then Adwaita:light.
+
+ -- Greg Gauthier <gmgauthier@protonmail.com>  Wed, 16 Sep 2026 20:21:00 +0100
+
 dispatch (0.1.0-1) unstable; urgency=medium
 
   * Initial release. gtkmm-3 Outlook Express-shaped feed reader for LCOS
