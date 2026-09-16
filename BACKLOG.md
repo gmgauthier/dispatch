@@ -1,6 +1,6 @@
 # Dispatch backlog
 
-Current release: **v0.1.0**. Last updated: 2026-09-15.
+Current release: **v0.1.1**. Last updated: 2026-09-16.
 
 Outlook Express shell. v1 is Feed mode (RSS 2 / Atom). Mail is a later mode of this binary, not a second guest app. Binary `dispatch`. Suite catalog: `lcos-projects/PRODUCT-BACKLOG.md`. Design: `lcos-projects/DISPATCH.md`. Plan: [DEVELOPMENT.md](DEVELOPMENT.md). How to land work: [DEVELOPMENT.md](DEVELOPMENT.md#process) — `feature/` / `fix/` branches, PRs to `master`, lint gate, semver on shipped PRs.
 

@@ -14,7 +14,7 @@ LCOS itself: [https://github.com/BryanLunduke/LCOS](https://github.com/BryanLund
 
 ## Status
 
-**v0.1.0.** Outlook Express-shaped RSS/Atom reader: stacked panes, OPML, HTML preview, Play for audio/video, Appearance, auto-refresh. See [INSTALL.md](INSTALL.md).
+**v0.1.1.** Outlook Express-shaped RSS/Atom reader: stacked panes, OPML, HTML preview, Play for audio/video, Appearance, auto-refresh. See [INSTALL.md](INSTALL.md).
 
 | Doc | What |
 |---|---|

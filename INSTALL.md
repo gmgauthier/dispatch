@@ -9,7 +9,7 @@ Four ways to get a binary, in the order LCOS cares about:
 | **AppImage** | Fallback for distros that do not install `.deb` files. gtkmm only. Published on the GitHub/Gitea release. |
 | **Git build** | Developers. See below. |
 
-Version comes from `meson.build` (currently `0.1.0`).
+Version comes from `meson.build` (currently `0.1.1`).
 
 ## Runtime needs
 
@@ -29,14 +29,14 @@ sudo apt install libgtkmm-3.0-1t64 libsoup-3.0-0 libxml2 glib-networking libfont
 From a release `.deb`:
 
 ```
-sudo apt install ./dist/dispatch_0.1.0-1_amd64.deb
+sudo apt install ./dist/dispatch_0.1.1-1_amd64.deb
 ```
 
 Or, from this tree:
 
 ```
 ./scripts/release.sh deb
-sudo apt install ./dist/dispatch_0.1.0-1_amd64.deb
+sudo apt install ./dist/dispatch_0.1.1-1_amd64.deb
 ```
 
 That installs:
@@ -56,8 +56,8 @@ Uninstall: `sudo apt remove dispatch`.
 `meson dist` produces `build/meson-dist/dispatch-VERSION.tar.xz`.
 
 ```
-tar -xf dispatch-0.1.0.tar.xz
-cd dispatch-0.1.0
+tar -xf dispatch-0.1.1.tar.xz
+cd dispatch-0.1.1
 sudo apt install build-essential meson ninja-build pkg-config \
   libgtkmm-3.0-dev libxml2-dev libsoup-3.0-dev libfontconfig1-dev
 meson setup build --prefix=/usr
