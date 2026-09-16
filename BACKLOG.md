@@ -10,7 +10,7 @@ Outlook Express shell. v1 is Feed mode (RSS 2 / Atom). Mail is a later mode of t
 
 ## Low Priority
 
-- Folders in the feed list
+- **Feed categories** (depth 1). Left pane is a tree: category names as branches, feeds as leaves. No nested categories. Click a feed → that feed’s titles (today). Click the **category** → aggregated titles from every feed in that group, in the title pane (same sort as a single feed). Examples: Tech, Politics, Entertainment. Persist in the ini / OPML if OPML already has `<outline>` groups. Uncategorized feeds stay at the root. Do not mix this with Mail-mode folders.
 - Search all feeds
 - Full-text search
 - Podcasts-as-a-product (in-item images / mp3 / mp4 Play already shipped; a dedicated podcast UI is not)
