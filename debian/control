@@ -13,9 +13,9 @@ Build-Depends:
  libsoup-3.0-dev,
  libfontconfig1-dev
 Standards-Version: 4.7.0
-Homepage: https://gitea.scriptorium/gmgauthier/dispatch
-Vcs-Git: https://gitea.scriptorium/gmgauthier/dispatch.git
-Vcs-Browser: https://gitea.scriptorium/gmgauthier/dispatch
+Homepage: https://github.com/gmgauthier/dispatch
+Vcs-Git: https://github.com/gmgauthier/dispatch.git
+Vcs-Browser: https://github.com/gmgauthier/dispatch
 Rules-Requires-Root: no
 
 Package: dispatch
