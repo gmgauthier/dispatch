@@ -5,6 +5,9 @@
 
 #include <libetpan/libetpan.h>
 
+#include <set>
+#include <vector>
+
 namespace dispatch {
 namespace {
 
@@ -48,6 +51,39 @@ bool flag_seen(struct mailimap_msg_att_dynamic* dyn)
       return true;
   }
   return false;
+}
+
+void store_flags(mailimap* imap, const std::vector<uint32_t>& uids, bool add_seen)
+{
+  if (!imap || uids.empty())
+    return;
+  mailimap_set* set = mailimap_set_new_empty();
+  if (!set)
+    return;
+  for (uint32_t uid : uids)
+    mailimap_set_add_single(set, uid);
+  mailimap_flag_list* flags = mailimap_flag_list_new_empty();
+  mailimap_flag_list_add(flags, mailimap_flag_new_seen());
+  mailimap_store_att_flags* store = add_seen
+                                        ? mailimap_store_att_flags_new_add_flags_silent(flags)
+                                        : mailimap_store_att_flags_new_remove_flags_silent(flags);
+  mailimap_uid_store(imap, set, store);
+  mailimap_store_att_flags_free(store);
+  mailimap_set_free(set);
+}
+
+void push_local_flags(mailimap* imap)
+{
+  std::vector<uint32_t> seen;
+  std::vector<uint32_t> unseen;
+  for (const auto& item : inbox_uid_seen()) {
+    if (item.second)
+      seen.push_back(item.first);
+    else
+      unseen.push_back(item.first);
+  }
+  store_flags(imap, seen, true);
+  store_flags(imap, unseen, false);
 }
 
 void take_att(mailimap_msg_att* att, uint32_t& uid, const char*& body, size_t& len, bool& seen)
@@ -129,14 +165,17 @@ InboxSyncResult sync_inbox(const ImapAccount& account)
   }
 
   const uint32_t uidvalidity = imap->imap_selection_info->sel_uidvalidity;
-  if (uidvalidity != 0 && uidvalidity != inbox_uidvalidity()) {
-    inbox_wipe();
+  const uint32_t local_uv = inbox_uidvalidity();
+  if (uidvalidity != 0 && local_uv == 0) {
     inbox_set_uidvalidity(uidvalidity);
-  } else if (inbox_uidvalidity() == 0 && uidvalidity != 0) {
+  } else if (uidvalidity != 0 && local_uv != 0 && uidvalidity != local_uv) {
+    inbox_wipe();
     inbox_set_uidvalidity(uidvalidity);
   }
 
-  const std::set<uint32_t> have = inbox_uids();
+  push_local_flags(imap);
+
+  const std::set<uint32_t> have = inbox_skip_uids();
 
   mailimap_set* set = mailimap_set_new_interval(1, 0);
   mailimap_fetch_type* ftype = mailimap_fetch_type_new_fetch_att_list_empty();

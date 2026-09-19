@@ -12,9 +12,20 @@
 
 namespace dispatch {
 
+struct ComposeFill {
+  Glib::ustring title = "New Mail";
+  std::string to;
+  std::string cc;
+  std::string subject;
+  std::string body;
+  std::string in_reply_to;
+  std::string references;
+};
+
 class ComposeWindow : public Gtk::Window {
  public:
-  ComposeWindow(const Settings& settings, std::function<void(bool sent, std::string error)> done);
+  ComposeWindow(const Settings& settings, std::function<void(bool sent, std::string error)> done,
+                ComposeFill fill = {});
   ~ComposeWindow() override;
 
  private:
@@ -40,6 +51,8 @@ class ComposeWindow : public Gtk::Window {
   std::thread send_thread_;
   bool send_ok_ = false;
   std::string send_error_;
+  std::string in_reply_to_;
+  std::string references_;
 };
 
 }  // namespace dispatch

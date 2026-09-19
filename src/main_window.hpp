@@ -5,6 +5,7 @@
 #include "body_view.hpp"
 #include "feed.hpp"
 #include "fetch.hpp"
+#include "compose_window.hpp"
 #include "mail_imap.hpp"
 #include "mail_smtp.hpp"
 #include "mail_store.hpp"
@@ -104,11 +105,19 @@ class MainWindow : public Gtk::Window {
   void fill_mail_folders();
   void select_mail_folder(int index);
   void fill_mail_list();
+  void on_mail_date_header();
   void show_mail_preview();
   void open_mail();
   void step_mail(int delta);
   void on_send_recv();
   void on_new_mail();
+  void on_reply();
+  void on_forward();
+  void on_delete_mail();
+  void on_undelete_mail();
+  void mark_mail(bool unread);
+  void update_mail_actions();
+  void open_compose(ComposeFill fill);
   void start_mail_sync();
   void on_mail_sync_done();
   void on_compose_done(bool sent, const std::string& error);
@@ -154,6 +163,7 @@ class MainWindow : public Gtk::Window {
   Gtk::Button btn_reply_{"Reply"};
   Gtk::Button btn_forward_{"Forward"};
   Gtk::Button btn_delete_{"Delete"};
+  Gtk::Button btn_undelete_{"Undelete"};
   Gtk::Button btn_ephemeris_{"Ephemeris"};
   Gtk::RadioButton btn_mail_{"MAIL"};
   Gtk::RadioButton btn_feed_{"FEED"};
@@ -197,7 +207,7 @@ class MainWindow : public Gtk::Window {
   Gtk::TreeModelColumn<int> col_folder_index_;
   Gtk::TreeModelColumnRecord folder_cols_;
 
-  Glib::RefPtr<Gtk::ListStore> mail_store_;
+  Glib::RefPtr<Gtk::TreeStore> mail_store_;
   Gtk::TreeModelColumn<Glib::ustring> col_mail_from_;
   Gtk::TreeModelColumn<Glib::ustring> col_mail_subject_;
   Gtk::TreeModelColumn<Glib::ustring> col_mail_date_;
@@ -218,6 +228,7 @@ class MainWindow : public Gtk::Window {
   bool mail_mode_ = true;
   int current_folder_ = 0;
   int current_mail_ = -1;
+  bool mail_date_newest_first_ = true;
   std::vector<MailMessage> mail_items_;
   Gtk::TreeModel::Path folder_current_path_;
   Gtk::TreeModel::Path folder_hover_path_;
