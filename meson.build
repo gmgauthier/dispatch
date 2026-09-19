@@ -50,6 +50,8 @@ executable(
   'src/mail_store.cpp',
   'src/mail_parse.cpp',
   'src/mail_imap.cpp',
+  'src/mail_smtp.cpp',
+  'src/compose_window.cpp',
   include_directories: inc,
   dependencies: [gtkmm, libxml, libsoup, fontconfig, etpan, gmime],
   install: true,

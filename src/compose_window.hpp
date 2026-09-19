@@ -1,0 +1,45 @@
+/* SPDX-License-Identifier: Unlicense */
+
+#pragma once
+
+#include "settings.hpp"
+
+#include <functional>
+#include <gtkmm.h>
+#include <mutex>
+#include <string>
+#include <thread>
+
+namespace dispatch {
+
+class ComposeWindow : public Gtk::Window {
+ public:
+  ComposeWindow(const Settings& settings, std::function<void(bool sent, std::string error)> done);
+  ~ComposeWindow() override;
+
+ private:
+  void on_send();
+  void on_send_done();
+
+  Settings settings_;
+  std::function<void(bool sent, std::string error)> done_;
+  Gtk::Box root_{Gtk::ORIENTATION_VERTICAL, 8};
+  Gtk::Grid grid_;
+  Gtk::Label from_label_;
+  Gtk::Entry to_;
+  Gtk::Entry cc_;
+  Gtk::Entry subject_;
+  Gtk::ScrolledWindow body_scroll_;
+  Gtk::TextView body_;
+  Gtk::Box buttons_{Gtk::ORIENTATION_HORIZONTAL, 8};
+  Gtk::Button btn_send_{"Send"};
+  Gtk::Label status_;
+  Glib::Dispatcher send_done_;
+  sigc::connection send_conn_;
+  std::mutex mu_;
+  std::thread send_thread_;
+  bool send_ok_ = false;
+  std::string send_error_;
+};
+
+}  // namespace dispatch

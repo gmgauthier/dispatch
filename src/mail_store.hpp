@@ -27,6 +27,18 @@ void inbox_set_uidvalidity(uint32_t uidvalidity);
 void inbox_wipe();
 std::set<uint32_t> inbox_uids();
 bool inbox_write(uint32_t uid, const char* rfc822, size_t len, bool seen);
+bool folder_write(int folder_index, const char* rfc822, size_t len, bool seen);
+bool folder_remove(const std::string& path);
+const char* mail_folder_name(int folder_index);
 std::vector<MailMessage> load_mail_folder(int folder_index);
+
+enum {
+  kFolderInbox = 0,
+  kFolderSent = 1,
+  kFolderDrafts = 2,
+  kFolderOutbox = 3,
+  kFolderTrash = 4,
+  kFolderCount = 5
+};
 
 }  // namespace dispatch
