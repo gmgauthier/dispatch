@@ -1,3 +1,10 @@
+dispatch (1.0.0-1) unstable; urgency=medium
+
+  * First 1.0: Mail M7 rich compose, IMAP LIST folders, Outlook Express
+    headers, server-side delete and unread, and on-disk RSS/Atom cache.
+
+ -- Greg Gauthier <gmgauthier@protonmail.com>  Sat, 19 Sep 2026 16:00:00 +0100
+
 dispatch (0.2.0-1) unstable; urgency=medium
 
   * Mail mode: IMAP/SMTP with STARTTLS, local Maildir, compose, threads,
