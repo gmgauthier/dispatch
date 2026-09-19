@@ -26,7 +26,7 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
  glib-networking
-Description: Outlook Express-shaped feed reader for LCOS
+Description: Outlook Express-shaped feed reader and mail for LCOS
  Dispatch is a gtkmm-3 RSS/Atom reader whose chrome is Outlook Express:
  feeds on the left, headlines over the body, optional article window.
- Mail is a later mode of this window.
+ MAIL/FEED switch the same window. Mail uses IMAP/SMTP and a local Maildir.
