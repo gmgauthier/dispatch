@@ -1,3 +1,10 @@
+dispatch (0.2.0-1) unstable; urgency=medium
+
+  * Mail mode: IMAP/SMTP with STARTTLS, local Maildir, compose, threads,
+    and an Ephemeris address picker. Feed mode unchanged.
+
+ -- Greg Gauthier <gmgauthier@protonmail.com>  Sat, 19 Sep 2026 14:30:00 +0100
+
 dispatch (0.1.1-1) unstable; urgency=medium
 
   * Standardize GTK theming for LCOS: Clearlooks-Phenix, then Clearlooks, then Adwaita:light.

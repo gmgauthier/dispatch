@@ -4,7 +4,7 @@
 
 ![Dispatch on LCOS](brand/screenshot-feed.png)
 
-An **Outlook Express-shaped** feed reader for The Lunduke Computer Operating System (LCOS). v1 is RSS 2 / Atom. Mail is a later mode of this same window.
+An **Outlook Express-shaped** feed reader and mail client for The Lunduke Computer Operating System (LCOS). MAIL and FEED are modes of the same window.
 
 Binary: `dispatch`. Unlicense.
 
@@ -14,7 +14,7 @@ LCOS itself: [https://github.com/BryanLunduke/LCOS](https://github.com/BryanLund
 
 ## Status
 
-**v0.1.1.** Outlook Express-shaped RSS/Atom reader: stacked panes, OPML, HTML preview, Play for audio/video, Appearance, auto-refresh. See [INSTALL.md](INSTALL.md).
+**v0.2.0.** Feed mode as before, plus Mail: IMAP/SMTP STARTTLS, Maildir, compose, threads, Ephemeris address picker. See [INSTALL.md](INSTALL.md).
 
 | Doc | What |
 |---|---|
@@ -24,7 +24,7 @@ LCOS itself: [https://github.com/BryanLunduke/LCOS](https://github.com/BryanLund
 ## Build
 
 ```
-sudo apt install build-essential meson ninja-build pkg-config g++ libgtkmm-3.0-dev libxml2-dev libsoup-3.0-dev libfontconfig1-dev clang-format cppcheck
+sudo apt install build-essential meson ninja-build pkg-config g++ libgtkmm-3.0-dev libxml2-dev libsoup-3.0-dev libfontconfig1-dev libetpan-dev libgmime-3.0-dev clang-format cppcheck
 meson setup build
 meson compile -C build
 ./build/dispatch

@@ -10,9 +10,9 @@ Repos: https://gitea.scriptorium/gmgauthier/dispatch (origin), https://github.co
 
 Catalog note: `lcos-projects/DISPATCH.md`.
 
-## Status (2026-09-13)
+## Status (2026-09-19)
 
-**M6 — Package.** `.deb`, tarball, AppImage. Tag `v0.1.0`.
+**v0.2.0.** Feed M0–M6 plus Mail M0–M5. Tag `v0.2.0`.
 
 ## 1. Locked decisions
 

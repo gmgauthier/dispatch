@@ -1,12 +1,12 @@
 # Dispatch backlog
 
-Current release: **v0.1.1**. Last updated: 2026-09-16.
+Current release: **v0.2.0**. Last updated: 2026-09-19.
 
-Outlook Express shell. v1 is Feed mode (RSS 2 / Atom). Mail is a later mode of this binary, not a second guest app. Binary `dispatch`. Suite catalog: `lcos-projects/PRODUCT-BACKLOG.md`. Design: `lcos-projects/DISPATCH.md`. Plan: [DEVELOPMENT.md](DEVELOPMENT.md). How to land work: [DEVELOPMENT.md](DEVELOPMENT.md#process) — `feature/` / `fix/` branches, PRs to `master`, lint gate, semver on shipped PRs.
+Outlook Express shell. Feed (RSS 2 / Atom) and Mail are modes of this binary, not a second guest app. Binary `dispatch`. Suite catalog: `lcos-projects/PRODUCT-BACKLOG.md`. Design: `lcos-projects/DISPATCH.md`. Mail plan: `lcos-projects/DISPATCH-MAIL.md`. Plan: [DEVELOPMENT.md](DEVELOPMENT.md). How to land work: [DEVELOPMENT.md](DEVELOPMENT.md#process) — `feature/` / `fix/` branches, PRs to `master`, lint gate, semver on shipped PRs.
 
 ## High Priority
 
-- **Mail mode.** Toolbar `[MAIL]` is a stub (tooltip `Coming soon...`). Same OE chrome: folders left, list over preview, double-click opens a message window. IMAP/SMTP the user configures; no “online account” product identity. v1 of mail: one mailbox, send/receive, local folders, an address-book *picker* from Ephemeris Contacts or a tiny local nick list — not a second people database. Multi-year; do not mix IMAP into Feed-mode work.
+- **Mail M7 — rich text.** Compose format bar (the Feed HTML subset); `multipart/alternative`. Not mixed into M0–M6.
 
 ## Low Priority
 
