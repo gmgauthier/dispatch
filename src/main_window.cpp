@@ -2,6 +2,7 @@
 
 #include "main_window.hpp"
 #include "about_dialog.hpp"
+#include "account_dialog.hpp"
 #include "article_window.hpp"
 #include "font_dialog.hpp"
 #include "paths.hpp"
@@ -228,6 +229,7 @@ void MainWindow::build_menu()
   add_menu("F_eeds", *feeds);
 
   auto* options = Gtk::manage(new Gtk::Menu());
+  add_item(*options, "_Account…", sigc::mem_fun(*this, &MainWindow::on_account));
   add_item(*options, "_Appearance…", sigc::mem_fun(*this, &MainWindow::on_appearance));
   add_menu("_Options", *options);
 
@@ -1098,6 +1100,15 @@ void MainWindow::on_appearance()
   FontDialog dlg(*this, settings_, [this]() { apply_appearance(); });
   if (dlg.run() == Gtk::RESPONSE_OK)
     persist();
+}
+
+void MainWindow::on_account()
+{
+  AccountDialog dlg(*this, settings_);
+  if (dlg.run() == Gtk::RESPONSE_OK) {
+    dlg.apply_to(settings_);
+    persist();
+  }
 }
 
 void MainWindow::fill_mail_folders()
