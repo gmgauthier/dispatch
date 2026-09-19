@@ -27,6 +27,7 @@ struct Settings {
   bool preview = true;
   std::string last_url;
   int refresh_minutes = 15;
+  bool mail_mode = true;
 
   void load();
   void save() const;
