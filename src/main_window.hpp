@@ -6,6 +6,7 @@
 #include "feed.hpp"
 #include "fetch.hpp"
 #include "mail_imap.hpp"
+#include "mail_smtp.hpp"
 #include "mail_store.hpp"
 #include "opml.hpp"
 #include "settings.hpp"
@@ -51,7 +52,8 @@ class MainWindow : public Gtk::Window {
     std::string error;
   };
   struct MailSyncJob {
-    InboxSyncResult result;
+    InboxSyncResult inbox;
+    OutboxFlushResult outbox;
   };
 
   void load_css();
@@ -106,8 +108,10 @@ class MainWindow : public Gtk::Window {
   void open_mail();
   void step_mail(int delta);
   void on_send_recv();
+  void on_new_mail();
   void start_mail_sync();
   void on_mail_sync_done();
+  void on_compose_done(bool sent, const std::string& error);
   int mail_unread_count() const;
   void on_mail_cell_data(Gtk::CellRenderer* cell, const Gtk::TreeModel::const_iterator& it);
   bool on_mail_motion(GdkEventMotion* event);

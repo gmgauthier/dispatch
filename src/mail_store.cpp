@@ -181,13 +181,55 @@ bool inbox_write(uint32_t uid, const char* rfc822, size_t len, bool seen)
   return true;
 }
 
+const char* mail_folder_name(int folder_index)
+{
+  if (folder_index < 0 || folder_index >= kFolderCount)
+    return "";
+  return kFolders[folder_index];
+}
+
+bool folder_write(int folder_index, const char* rfc822, size_t len, bool seen)
+{
+  if (!rfc822 || len == 0 || folder_index < 0 || folder_index >= kFolderCount)
+    return false;
+  ensure_maildirs();
+  const char* folder = kFolders[folder_index];
+  std::ostringstream name;
+  name << static_cast<long>(::time(nullptr)) << ".M" << ::getpid() << "Q" << folder_index
+       << ".dispatch";
+  const std::string tmp = Glib::build_filename(folder_dir(folder), "tmp", name.str());
+  {
+    std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
+    if (!f)
+      return false;
+    f.write(rfc822, static_cast<std::streamsize>(len));
+    if (!f)
+      return false;
+  }
+  const std::string dest =
+      Glib::build_filename(folder_dir(folder), "cur", name.str() + (seen ? ":2,S" : ":2,"));
+  if (::rename(tmp.c_str(), dest.c_str()) != 0) {
+    ::unlink(tmp.c_str());
+    return false;
+  }
+  return true;
+}
+
+bool folder_remove(const std::string& path)
+{
+  if (path.empty())
+    return false;
+  return ::unlink(path.c_str()) == 0;
+}
+
 std::vector<MailMessage> load_mail_folder(int folder_index)
 {
   std::vector<MailMessage> out;
-  if (folder_index != 0)
+  if (folder_index < 0 || folder_index >= kFolderCount)
     return out;
-  scan_dir(Glib::build_filename(folder_dir("Inbox"), "cur"), out);
-  scan_dir(Glib::build_filename(folder_dir("Inbox"), "new"), out);
+  const char* folder = kFolders[folder_index];
+  scan_dir(Glib::build_filename(folder_dir(folder), "cur"), out);
+  scan_dir(Glib::build_filename(folder_dir(folder), "new"), out);
   std::sort(out.begin(), out.end(),
             [](const MailMessage& a, const MailMessage& b) { return a.uid > b.uid; });
   return out;
