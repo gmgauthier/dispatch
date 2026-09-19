@@ -15,6 +15,8 @@ gtkmm = dependency('gtkmm-3.0')
 libxml = dependency('libxml-2.0')
 libsoup = dependency('libsoup-3.0')
 fontconfig = dependency('fontconfig')
+etpan = dependency('libetpan')
+gmime = dependency('gmime-3.0')
 
 conf = configuration_data()
 conf.set_quoted('VERSION', meson.project_version())
@@ -45,8 +47,11 @@ executable(
   'src/opml.cpp',
   'src/body_view.cpp',
   'src/font_dialog.cpp',
+  'src/mail_store.cpp',
+  'src/mail_parse.cpp',
+  'src/mail_imap.cpp',
   include_directories: inc,
-  dependencies: [gtkmm, libxml, libsoup, fontconfig],
+  dependencies: [gtkmm, libxml, libsoup, fontconfig, etpan, gmime],
   install: true,
   install_dir: get_option('bindir'),
 )
