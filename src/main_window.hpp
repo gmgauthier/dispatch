@@ -88,6 +88,7 @@ class MainWindow : public Gtk::Window {
   void on_toggle_unread();
   void on_toggle_preview();
   void on_appearance();
+  void on_account();
   void apply_appearance();
   void on_mail_clicked();
   void on_feed_clicked();

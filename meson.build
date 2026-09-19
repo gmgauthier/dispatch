@@ -38,6 +38,7 @@ executable(
   'src/article_window.cpp',
   'src/about_dialog.cpp',
   'src/subscribe_dialog.cpp',
+  'src/account_dialog.cpp',
   'src/feed.cpp',
   'src/fetch.cpp',
   'src/settings.cpp',

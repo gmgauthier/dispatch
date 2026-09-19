@@ -28,6 +28,14 @@ struct Settings {
   std::string last_url;
   int refresh_minutes = 15;
   bool mail_mode = true;
+  std::string imap_host;
+  int imap_port = 143;
+  std::string imap_tls = "starttls";
+  std::string smtp_host;
+  int smtp_port = 587;
+  std::string smtp_tls = "starttls";
+  std::string mail_user;
+  std::string mail_password;
 
   void load();
   void save() const;

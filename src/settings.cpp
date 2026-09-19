@@ -7,6 +7,8 @@
 #include <glibmm/keyfile.h>
 #include <glibmm/miscutils.h>
 
+#include <sys/stat.h>
+
 #include <algorithm>
 #include <cctype>
 
@@ -148,6 +150,25 @@ void Settings::load()
     if (refresh_minutes > 1440)
       refresh_minutes = 1440;
   }
+
+  if (kf.has_group("account")) {
+    imap_host = get_str(kf, "account", "imap_host");
+    imap_port = get_int(kf, "account", "imap_port", imap_port);
+    imap_tls = get_str(kf, "account", "imap_tls");
+    if (imap_tls != "implicit")
+      imap_tls = "starttls";
+    smtp_host = get_str(kf, "account", "smtp_host");
+    smtp_port = get_int(kf, "account", "smtp_port", smtp_port);
+    smtp_tls = get_str(kf, "account", "smtp_tls");
+    if (smtp_tls != "implicit")
+      smtp_tls = "starttls";
+    mail_user = get_str(kf, "account", "user");
+    mail_password = get_str(kf, "account", "password");
+    if (imap_port < 1 || imap_port > 65535)
+      imap_port = 143;
+    if (smtp_port < 1 || smtp_port > 65535)
+      smtp_port = 587;
+  }
 }
 
 void Settings::save() const
@@ -177,8 +198,17 @@ void Settings::save() const
   kf.set_string("window", "last_url", last_url);
   kf.set_integer("window", "refresh_minutes", refresh_minutes);
   kf.set_boolean("window", "mail_mode", mail_mode);
+  kf.set_string("account", "imap_host", imap_host);
+  kf.set_integer("account", "imap_port", imap_port);
+  kf.set_string("account", "imap_tls", imap_tls == "implicit" ? "implicit" : "starttls");
+  kf.set_string("account", "smtp_host", smtp_host);
+  kf.set_integer("account", "smtp_port", smtp_port);
+  kf.set_string("account", "smtp_tls", smtp_tls == "implicit" ? "implicit" : "starttls");
+  kf.set_string("account", "user", mail_user);
+  kf.set_string("account", "password", mail_password);
   try {
     kf.save_to_file(config_path());
+    ::chmod(config_path().c_str(), 0600);
   } catch (const Glib::Error&) {
   }
 }
