@@ -12,6 +12,7 @@
 #include <glibmm/spawn.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <iostream>
 
 namespace dispatch {
@@ -113,9 +114,11 @@ MainWindow::MainWindow()
 
   status_ctx_ = status_.get_context_id("main");
   fetch_conn_ = fetch_done_.connect(sigc::mem_fun(*this, &MainWindow::on_fetch_done));
+  mail_conn_ = mail_done_.connect(sigc::mem_fun(*this, &MainWindow::on_mail_sync_done));
   signal_hide().connect(sigc::mem_fun(*this, &MainWindow::persist));
 
   settings_.load();
+  ensure_maildirs();
   apply_appearance();
   for (const auto& saved : settings_.feeds) {
     Feed f;
@@ -151,8 +154,11 @@ MainWindow::~MainWindow()
   persist();
   refresh_timer_.disconnect();
   fetch_conn_.disconnect();
+  mail_conn_.disconnect();
   if (fetch_thread_.joinable())
     fetch_thread_.join();
+  if (mail_thread_.joinable())
+    mail_thread_.join();
 }
 
 void MainWindow::load_css()
@@ -246,7 +252,7 @@ void MainWindow::build_toolbar()
   feed_tools_.pack_start(btn_subscribe_, Gtk::PACK_SHRINK);
   feed_tools_.pack_start(btn_toggle_unread_, Gtk::PACK_SHRINK);
 
-  btn_send_recv_.set_sensitive(false);
+  btn_send_recv_.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_send_recv));
   btn_new_mail_.set_sensitive(false);
   btn_reply_.set_sensitive(false);
   btn_forward_.set_sensitive(false);
@@ -438,6 +444,7 @@ void MainWindow::build_body()
   mail_cols_.add(col_mail_from_);
   mail_cols_.add(col_mail_subject_);
   mail_cols_.add(col_mail_date_);
+  mail_cols_.add(col_mail_index_);
   mail_store_ = Gtk::ListStore::create(mail_cols_);
   mail_view_.set_model(mail_store_);
   {
@@ -477,9 +484,35 @@ void MainWindow::build_body()
   }
   mail_view_.get_style_context()->add_class("dispatch-headlines");
   style_nav_column(mail_view_);
+  for (guint c = 0; c < mail_view_.get_n_columns(); ++c) {
+    if (auto* col = mail_view_.get_column(c)) {
+      if (auto* cell = col->get_first_cell())
+        col->set_cell_data_func(*cell, sigc::mem_fun(*this, &MainWindow::on_mail_cell_data));
+    }
+  }
+  mail_view_.signal_motion_notify_event().connect(sigc::mem_fun(*this, &MainWindow::on_mail_motion),
+                                                  false);
+  mail_view_.signal_leave_notify_event().connect(sigc::mem_fun(*this, &MainWindow::on_mail_leave),
+                                                 false);
+  mail_view_.signal_button_press_event().connect(sigc::mem_fun(*this, &MainWindow::on_mail_button),
+                                                 false);
+  mail_view_.signal_key_press_event().connect(sigc::mem_fun(*this, &MainWindow::on_mail_key),
+                                              false);
   mail_scroll_.set_policy(Gtk::POLICY_NEVER, Gtk::POLICY_AUTOMATIC);
   mail_scroll_.add(mail_view_);
   mail_scroll_.get_style_context()->add_class("dispatch-headlines-scroll");
+  mail_scroll_.signal_button_press_event().connect(
+      [this](GdkEventButton*) {
+        mail_view_.grab_focus();
+        return false;
+      },
+      false);
+  folder_scroll_.signal_button_press_event().connect(
+      [this](GdkEventButton*) {
+        folder_view_.grab_focus();
+        return false;
+      },
+      false);
 
   body_scroll_.set_policy(Gtk::POLICY_AUTOMATIC, Gtk::POLICY_AUTOMATIC);
   body_scroll_.add(body_view_);
@@ -672,8 +705,12 @@ void MainWindow::start_refresh_timer()
   const unsigned sec = static_cast<unsigned>(settings_.refresh_minutes) * 60u;
   refresh_timer_ = Glib::signal_timeout().connect_seconds(
       [this]() {
-        if (!mail_mode_ && !feeds_.empty() && !fetching_)
+        if (mail_mode_) {
+          if (!mail_syncing_)
+            on_send_recv();
+        } else if (!feeds_.empty() && !fetching_) {
           on_refresh_all();
+        }
         return true;
       },
       sec);
@@ -1126,16 +1163,153 @@ void MainWindow::fill_mail_folders()
 void MainWindow::select_mail_folder(int index)
 {
   current_folder_ = index;
+  current_mail_ = -1;
+  mail_current_path_.clear();
+  mail_hover_path_.clear();
   if (index >= 0 && index < 5)
     folder_current_path_ = Gtk::TreeModel::Path(std::to_string(index));
   else
     folder_current_path_.clear();
   folder_view_.queue_draw();
-  mail_store_->clear();
-  body_view_.load({}, {}, {});
+  mail_items_ = load_mail_folder(index);
+  fill_mail_list();
   static const char* kFolders[] = {"Inbox", "Sent", "Drafts", "Outbox", "Trash"};
-  if (index >= 0 && index < 5)
-    set_status(Glib::ustring(kFolders[index]) + " — 0 messages.");
+  if (index >= 0 && index < 5) {
+    const int n = static_cast<int>(mail_items_.size());
+    const int unread = mail_unread_count();
+    if (n == 0)
+      set_status(Glib::ustring(kFolders[index]) + " — 0 messages.");
+    else
+      set_status(Glib::ustring::compose("%1 — %2 messages, %3 unread", kFolders[index], n, unread));
+  }
+}
+
+void MainWindow::fill_mail_list()
+{
+  mail_store_->clear();
+  mail_current_path_.clear();
+  mail_hover_path_.clear();
+  current_mail_ = -1;
+  body_view_.load({}, {}, {});
+  for (int i = 0; i < static_cast<int>(mail_items_.size()); ++i) {
+    const auto& m = mail_items_[static_cast<size_t>(i)];
+    auto it = mail_store_->append();
+    (*it)[col_mail_from_] = u8(m.from);
+    (*it)[col_mail_subject_] = u8(m.subject);
+    (*it)[col_mail_date_] = u8(m.date);
+    (*it)[col_mail_index_] = i;
+  }
+  mail_view_.queue_draw();
+}
+
+int MainWindow::mail_unread_count() const
+{
+  int n = 0;
+  for (const auto& m : mail_items_) {
+    if (m.unread)
+      ++n;
+  }
+  return n;
+}
+
+void MainWindow::show_mail_preview()
+{
+  if (current_mail_ < 0 || current_mail_ >= static_cast<int>(mail_items_.size()))
+    return;
+  const auto& m = mail_items_[static_cast<size_t>(current_mail_)];
+  body_view_.load(m.html, {}, {});
+}
+
+void MainWindow::open_mail()
+{
+  if (current_mail_ < 0 || current_mail_ >= static_cast<int>(mail_items_.size()))
+    return;
+  const auto& m = mail_items_[static_cast<size_t>(current_mail_)];
+  auto* win = new ArticleWindow(u8(m.subject.empty() ? "(no subject)" : m.subject), m.html, {}, {});
+  if (auto app = get_application())
+    app->add_window(*win);
+  win->signal_hide().connect([win]() { delete win; });
+  win->present();
+}
+
+void MainWindow::step_mail(int delta)
+{
+  if (mail_items_.empty())
+    return;
+  int i = current_mail_;
+  if (i < 0)
+    i = delta >= 0 ? 0 : static_cast<int>(mail_items_.size()) - 1;
+  else
+    i += delta;
+  if (i < 0)
+    i = 0;
+  if (i >= static_cast<int>(mail_items_.size()))
+    i = static_cast<int>(mail_items_.size()) - 1;
+  current_mail_ = i;
+  mail_current_path_ = Gtk::TreeModel::Path(std::to_string(i));
+  show_mail_preview();
+  if (auto* col = mail_view_.get_column(0))
+    mail_view_.scroll_to_cell(mail_current_path_, *col);
+  mail_view_.queue_draw();
+}
+
+void MainWindow::on_send_recv()
+{
+  if (mail_syncing_)
+    return;
+  if (settings_.imap_host.empty() || settings_.mail_user.empty()) {
+    set_status("Set Options → Account… first.");
+    return;
+  }
+  start_mail_sync();
+}
+
+void MainWindow::start_mail_sync()
+{
+  mail_syncing_ = true;
+  btn_send_recv_.set_sensitive(false);
+  set_status("Downloading Inbox…");
+  if (mail_thread_.joinable())
+    mail_thread_.join();
+  ImapAccount acct;
+  acct.host = settings_.imap_host;
+  acct.port = static_cast<uint16_t>(settings_.imap_port);
+  acct.starttls = settings_.imap_tls != "implicit";
+  acct.user = settings_.mail_user;
+  acct.password = settings_.mail_password;
+  mail_thread_ = std::thread([this, acct]() {
+    InboxSyncResult result = sync_inbox(acct);
+    {
+      std::lock_guard<std::mutex> lock(mail_mutex_);
+      mail_job_.result = std::move(result);
+    }
+    mail_done_.emit();
+  });
+}
+
+void MainWindow::on_mail_sync_done()
+{
+  InboxSyncResult result;
+  {
+    std::lock_guard<std::mutex> lock(mail_mutex_);
+    result = std::move(mail_job_.result);
+  }
+  if (mail_thread_.joinable())
+    mail_thread_.join();
+  mail_syncing_ = false;
+  btn_send_recv_.set_sensitive(true);
+  if (!result.error.empty()) {
+    set_status("Send/Recv failed: " + u8(result.error));
+    return;
+  }
+  if (current_folder_ == 0)
+    select_mail_folder(0);
+  const int n = static_cast<int>(mail_items_.size());
+  if (result.downloaded > 0)
+    set_status(Glib::ustring::compose("Inbox — %1 messages (%2 new), %3 unread", n,
+                                      result.downloaded, mail_unread_count()));
+  else
+    set_status(Glib::ustring::compose("Inbox — %1 messages, %2 unread", n, mail_unread_count()));
 }
 
 void MainWindow::apply_mode(bool mail)
@@ -1154,8 +1328,8 @@ void MainWindow::apply_mode(bool mail)
   feed_tools_.set_visible(!mail);
 
   if (mail) {
-    refresh_timer_.disconnect();
     select_mail_folder(current_folder_ >= 0 ? current_folder_ : 0);
+    start_refresh_timer();
     folder_view_.grab_focus();
   } else {
     if (feeds_.empty())
@@ -1249,6 +1423,95 @@ bool MainWindow::on_folder_key(GdkEventKey* event)
     return true;
   }
   return false;
+}
+
+void MainWindow::on_mail_cell_data(Gtk::CellRenderer* cell,
+                                   const Gtk::TreeModel::const_iterator& it)
+{
+  if (!it)
+    return;
+  paint_nav_cell(cell, mail_store_->get_path(it), mail_current_path_, mail_hover_path_);
+  auto* text = dynamic_cast<Gtk::CellRendererText*>(cell);
+  if (!text)
+    return;
+  const int i = (*it)[col_mail_index_];
+  const bool unread = i >= 0 && i < static_cast<int>(mail_items_.size()) &&
+                      mail_items_[static_cast<size_t>(i)].unread;
+  text->property_weight() = unread ? Pango::WEIGHT_BOLD : Pango::WEIGHT_NORMAL;
+}
+
+bool MainWindow::on_mail_motion(GdkEventMotion* event)
+{
+  return nav_motion(mail_view_, mail_hover_path_, event);
+}
+
+bool MainWindow::on_mail_leave(GdkEventCrossing* event)
+{
+  return nav_leave(mail_view_, mail_hover_path_, event);
+}
+
+bool MainWindow::on_mail_button(GdkEventButton* event)
+{
+  if (!event)
+    return false;
+  if (event->type == GDK_BUTTON_PRESS)
+    mail_view_.grab_focus();
+  Gtk::TreeModel::Path path;
+  if (!path_at_bin_event(mail_view_, event->window, event->x, event->y, path))
+    return false;
+  auto it = mail_store_->get_iter(path);
+  if (!it)
+    return false;
+  current_mail_ = (*it)[col_mail_index_];
+  mail_current_path_ = path;
+  show_mail_preview();
+  mail_view_.queue_draw();
+  if (event->type == GDK_2BUTTON_PRESS) {
+    open_mail();
+    return true;
+  }
+  return event->type == GDK_BUTTON_PRESS;
+}
+
+bool MainWindow::on_mail_key(GdkEventKey* event)
+{
+  if (!event)
+    return false;
+  if (event->keyval == GDK_KEY_Return || event->keyval == GDK_KEY_KP_Enter) {
+    open_mail();
+    return true;
+  }
+  const int n = static_cast<int>(mail_items_.size());
+  switch (event->keyval) {
+    case GDK_KEY_Up:
+    case GDK_KEY_KP_Up:
+      step_mail(-1);
+      return true;
+    case GDK_KEY_Down:
+    case GDK_KEY_KP_Down:
+      step_mail(1);
+      return true;
+    case GDK_KEY_Page_Up:
+    case GDK_KEY_KP_Page_Up:
+      step_mail(-8);
+      return true;
+    case GDK_KEY_Page_Down:
+    case GDK_KEY_KP_Page_Down:
+      step_mail(8);
+      return true;
+    case GDK_KEY_Home:
+    case GDK_KEY_KP_Home:
+      if (n > 0)
+        step_mail(-n);
+      return true;
+    case GDK_KEY_End:
+    case GDK_KEY_KP_End:
+      if (n > 0)
+        step_mail(n);
+      return true;
+    default:
+      return false;
+  }
 }
 
 void MainWindow::on_feed_cell_data(Gtk::CellRenderer* cell,
