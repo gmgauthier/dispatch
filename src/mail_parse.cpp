@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Unlicense */
 
 #include "mail_parse.hpp"
+#include "compose_format.hpp"
 #include "config.hpp"
 
 #include <gmime/gmime.h>
@@ -19,23 +20,6 @@ std::once_flag gmime_once;
 void gmime_start()
 {
   g_mime_init();
-}
-
-std::string html_escape(const std::string& raw)
-{
-  std::string out;
-  out.reserve(raw.size() + 8);
-  for (unsigned char c : raw) {
-    if (c == '&')
-      out += "&amp;";
-    else if (c == '<')
-      out += "&lt;";
-    else if (c == '>')
-      out += "&gt;";
-    else
-      out += static_cast<char>(c);
-  }
-  return out;
 }
 
 void collect_text(GMimeObject* obj, std::string& html, std::string& plain)
@@ -230,7 +214,7 @@ void parse_rfc822(const std::string& raw, MailMessage& out)
   if (!html.empty())
     out.html = std::move(html);
   else if (!plain.empty())
-    out.html = "<pre>" + html_escape(plain) + "</pre>";
+    out.html = plain_to_letter_html(plain);
   else
     out.html = "<p>(no text body)</p>";
 
@@ -342,8 +326,8 @@ void parse_rfc822_envelope(const std::string& raw, std::string& from,
 
 std::string build_rfc822(const std::string& from, const std::vector<std::string>& to,
                          const std::vector<std::string>& cc, const std::string& subject,
-                         const std::string& body, const std::string& in_reply_to,
-                         const std::string& references)
+                         const std::string& plain, const std::string& html,
+                         const std::string& in_reply_to, const std::string& references)
 {
   std::call_once(gmime_once, gmime_start);
   GMimeMessage* msg = g_mime_message_new(TRUE);
@@ -380,11 +364,24 @@ std::string build_rfc822(const std::string& from, const std::vector<std::string>
   if (!references.empty())
     g_mime_object_set_header(GMIME_OBJECT(msg), "References", references.c_str(), nullptr);
 
-  GMimeTextPart* part = g_mime_text_part_new_with_subtype("plain");
-  g_mime_text_part_set_charset(part, "UTF-8");
-  g_mime_text_part_set_text(part, body.c_str());
-  g_mime_message_set_mime_part(msg, GMIME_OBJECT(part));
-  g_object_unref(part);
+  GMimeTextPart* plain_part = g_mime_text_part_new_with_subtype("plain");
+  g_mime_text_part_set_charset(plain_part, "UTF-8");
+  g_mime_text_part_set_text(plain_part, plain.c_str());
+  if (html.empty()) {
+    g_mime_message_set_mime_part(msg, GMIME_OBJECT(plain_part));
+    g_object_unref(plain_part);
+  } else {
+    GMimeTextPart* html_part = g_mime_text_part_new_with_subtype("html");
+    g_mime_text_part_set_charset(html_part, "UTF-8");
+    g_mime_text_part_set_text(html_part, html.c_str());
+    GMimeMultipart* alt = g_mime_multipart_new_with_subtype("alternative");
+    g_mime_multipart_add(alt, GMIME_OBJECT(plain_part));
+    g_mime_multipart_add(alt, GMIME_OBJECT(html_part));
+    g_object_unref(plain_part);
+    g_object_unref(html_part);
+    g_mime_message_set_mime_part(msg, GMIME_OBJECT(alt));
+    g_object_unref(alt);
+  }
 
   GMimeStream* stream = g_mime_stream_mem_new();
   g_mime_object_write_to_stream(GMIME_OBJECT(msg), nullptr, stream);

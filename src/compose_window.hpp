@@ -32,6 +32,13 @@ class ComposeWindow : public Gtk::Window {
   void on_send();
   void on_send_done();
   void on_pick(Gtk::Entry& dest);
+  void on_fmt_bold();
+  void on_fmt_italic();
+  void on_fmt_underline();
+  void on_fmt_heading();
+  void on_fmt_list();
+  void on_fmt_quote();
+  bool on_body_key(GdkEventKey* event);
 
   Settings settings_;
   std::function<void(bool sent, std::string error)> done_;
@@ -41,6 +48,13 @@ class ComposeWindow : public Gtk::Window {
   Gtk::Entry to_;
   Gtk::Entry cc_;
   Gtk::Entry subject_;
+  Gtk::Box fmt_{Gtk::ORIENTATION_HORIZONTAL, 4};
+  Gtk::Button btn_bold_{"B"};
+  Gtk::Button btn_italic_{"I"};
+  Gtk::Button btn_underline_{"U"};
+  Gtk::Button btn_heading_{"H"};
+  Gtk::Button btn_list_{"•"};
+  Gtk::Button btn_quote_{"“"};
   Gtk::ScrolledWindow body_scroll_;
   Gtk::TextView body_;
   Gtk::Box buttons_{Gtk::ORIENTATION_HORIZONTAL, 8};
