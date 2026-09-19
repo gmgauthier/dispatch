@@ -142,6 +142,7 @@ void Settings::load()
     preview = get_bool(kf, "window", "preview", preview);
     last_url = get_str(kf, "window", "last_url");
     refresh_minutes = get_int(kf, "window", "refresh_minutes", refresh_minutes);
+    mail_mode = get_bool(kf, "window", "mail_mode", true);
     if (refresh_minutes < 0)
       refresh_minutes = 0;
     if (refresh_minutes > 1440)
@@ -175,6 +176,7 @@ void Settings::save() const
   kf.set_boolean("window", "preview", preview);
   kf.set_string("window", "last_url", last_url);
   kf.set_integer("window", "refresh_minutes", refresh_minutes);
+  kf.set_boolean("window", "mail_mode", mail_mode);
   try {
     kf.save_to_file(config_path());
   } catch (const Glib::Error&) {
