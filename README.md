@@ -14,7 +14,7 @@ LCOS itself: [https://github.com/BryanLunduke/LCOS](https://github.com/BryanLund
 
 ## Status
 
-**v0.2.0.** Feed mode as before, plus Mail: IMAP/SMTP STARTTLS, Maildir, compose, threads, Ephemeris address picker. See [INSTALL.md](INSTALL.md).
+**v1.0.0.** Outlook Express-shaped feed reader and mail client: IMAP/SMTP STARTTLS, Maildir, IMAP folders, rich compose, threads, on-disk feed cache. See [INSTALL.md](INSTALL.md).
 
 | Doc | What |
 |---|---|

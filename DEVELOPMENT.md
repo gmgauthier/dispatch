@@ -12,7 +12,7 @@ Catalog note: `lcos-projects/DISPATCH.md`.
 
 ## Status (2026-09-19)
 
-**v0.2.0.** Feed M0–M6 plus Mail M0–M5. Tag `v0.2.0`.
+**v1.0.0.** Feed M0–M6 plus Mail M0–M7, IMAP folders, OE headers, server flags, feed item cache. Tag `v1.0.0`.
 
 ## 1. Locked decisions
 
