@@ -4,6 +4,7 @@
 #include "about_dialog.hpp"
 #include "account_dialog.hpp"
 #include "article_window.hpp"
+#include "compose_window.hpp"
 #include "font_dialog.hpp"
 #include "paths.hpp"
 #include "subscribe_dialog.hpp"
@@ -253,7 +254,7 @@ void MainWindow::build_toolbar()
   feed_tools_.pack_start(btn_toggle_unread_, Gtk::PACK_SHRINK);
 
   btn_send_recv_.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_send_recv));
-  btn_new_mail_.set_sensitive(false);
+  btn_new_mail_.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_new_mail));
   btn_reply_.set_sensitive(false);
   btn_forward_.set_sensitive(false);
   btn_delete_.set_sensitive(false);
@@ -1257,31 +1258,65 @@ void MainWindow::on_send_recv()
 {
   if (mail_syncing_)
     return;
-  if (settings_.imap_host.empty() || settings_.mail_user.empty()) {
+  if (settings_.imap_host.empty() && settings_.smtp_host.empty()) {
     set_status("Set Options → Account… first.");
     return;
   }
   start_mail_sync();
 }
 
+void MainWindow::on_new_mail()
+{
+  if (settings_.smtp_host.empty() || settings_.mail_user.empty()) {
+    set_status("Set Options → Account… first.");
+    return;
+  }
+  auto* win = new ComposeWindow(settings_,
+                                [this](bool sent, std::string err) { on_compose_done(sent, err); });
+  if (auto app = get_application())
+    app->add_window(*win);
+  win->signal_hide().connect([win]() { delete win; });
+  win->present();
+}
+
+void MainWindow::on_compose_done(bool sent, const std::string& error)
+{
+  if (sent)
+    set_status("Message sent.");
+  else
+    set_status("Send failed: " + u8(error) + " (saved to Outbox)");
+  if (current_folder_ == kFolderSent || current_folder_ == kFolderOutbox)
+    select_mail_folder(current_folder_);
+}
+
 void MainWindow::start_mail_sync()
 {
   mail_syncing_ = true;
   btn_send_recv_.set_sensitive(false);
-  set_status("Downloading Inbox…");
+  set_status("Send/Recv…");
   if (mail_thread_.joinable())
     mail_thread_.join();
-  ImapAccount acct;
-  acct.host = settings_.imap_host;
-  acct.port = static_cast<uint16_t>(settings_.imap_port);
-  acct.starttls = settings_.imap_tls != "implicit";
-  acct.user = settings_.mail_user;
-  acct.password = settings_.mail_password;
-  mail_thread_ = std::thread([this, acct]() {
-    InboxSyncResult result = sync_inbox(acct);
+  ImapAccount imap;
+  imap.host = settings_.imap_host;
+  imap.port = static_cast<uint16_t>(settings_.imap_port);
+  imap.starttls = settings_.imap_tls != "implicit";
+  imap.user = settings_.mail_user;
+  imap.password = settings_.mail_password;
+  SmtpAccount smtp;
+  smtp.host = settings_.smtp_host;
+  smtp.port = static_cast<uint16_t>(settings_.smtp_port);
+  smtp.starttls = settings_.smtp_tls != "implicit";
+  smtp.user = settings_.mail_user;
+  smtp.password = settings_.mail_password;
+  mail_thread_ = std::thread([this, imap, smtp]() {
+    MailSyncJob job;
+    if (!smtp.host.empty() && !smtp.user.empty())
+      job.outbox = flush_outbox(smtp);
+    if (!imap.host.empty() && !imap.user.empty())
+      job.inbox = sync_inbox(imap);
     {
       std::lock_guard<std::mutex> lock(mail_mutex_);
-      mail_job_.result = std::move(result);
+      mail_job_ = std::move(job);
     }
     mail_done_.emit();
   });
@@ -1289,25 +1324,32 @@ void MainWindow::start_mail_sync()
 
 void MainWindow::on_mail_sync_done()
 {
-  InboxSyncResult result;
+  MailSyncJob job;
   {
     std::lock_guard<std::mutex> lock(mail_mutex_);
-    result = std::move(mail_job_.result);
+    job = std::move(mail_job_);
   }
   if (mail_thread_.joinable())
     mail_thread_.join();
   mail_syncing_ = false;
   btn_send_recv_.set_sensitive(true);
-  if (!result.error.empty()) {
-    set_status("Send/Recv failed: " + u8(result.error));
+  if (current_folder_ >= 0)
+    select_mail_folder(current_folder_);
+  if (!job.outbox.error.empty() && job.outbox.sent == 0 && job.outbox.failed > 0) {
+    set_status("Send failed: " + u8(job.outbox.error));
     return;
   }
-  if (current_folder_ == 0)
-    select_mail_folder(0);
-  const int n = static_cast<int>(mail_items_.size());
-  if (result.downloaded > 0)
+  if (!job.inbox.error.empty()) {
+    set_status("Send/Recv failed: " + u8(job.inbox.error));
+    return;
+  }
+  const int n = static_cast<int>(load_mail_folder(kFolderInbox).size());
+  if (job.outbox.sent > 0)
+    set_status(Glib::ustring::compose("Sent %1, Inbox — %2 messages (%3 new)", job.outbox.sent, n,
+                                      job.inbox.downloaded));
+  else if (job.inbox.downloaded > 0)
     set_status(Glib::ustring::compose("Inbox — %1 messages (%2 new), %3 unread", n,
-                                      result.downloaded, mail_unread_count()));
+                                      job.inbox.downloaded, mail_unread_count()));
   else
     set_status(Glib::ustring::compose("Inbox — %1 messages, %2 unread", n, mail_unread_count()));
 }
