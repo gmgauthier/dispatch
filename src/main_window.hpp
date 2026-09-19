@@ -53,7 +53,7 @@ class MainWindow : public Gtk::Window {
     std::string error;
   };
   struct MailSyncJob {
-    InboxSyncResult inbox;
+    MailSyncResult inbox;
     OutboxFlushResult outbox;
   };
 
@@ -74,6 +74,7 @@ class MainWindow : public Gtk::Window {
   int total_unread() const;
   std::string key_of(const Item& item) const;
   void apply_read_state(Feed& feed);
+  void adopt_parsed(Feed& feed, const ParsedFeed& parsed);
   void mark_item(int feed_index, int item_index, bool unread);
   void request_fetch(const Glib::ustring& url, int replace_index, bool select);
   void start_fetch(const Glib::ustring& url, int replace_index);
@@ -107,6 +108,7 @@ class MainWindow : public Gtk::Window {
   void fill_mail_list();
   void on_mail_date_header();
   void show_mail_preview();
+  void set_mail_header(const MailMessage* m);
   void open_mail();
   void step_mail(int delta);
   void on_send_recv();
@@ -185,6 +187,14 @@ class MainWindow : public Gtk::Window {
   Gtk::TreeView headline_view_;
   Gtk::ScrolledWindow mail_scroll_;
   Gtk::TreeView mail_view_;
+  Gtk::Box preview_box_{Gtk::ORIENTATION_VERTICAL, 0};
+  Gtk::Grid mail_hdr_;
+  Gtk::Label mail_hdr_from_;
+  Gtk::Label mail_hdr_to_;
+  Gtk::Label mail_hdr_cc_;
+  Gtk::Label mail_hdr_date_;
+  Gtk::Label mail_hdr_subj_;
+  Gtk::Label mail_hdr_cc_l_{"Cc:", Gtk::ALIGN_START};
   Gtk::ScrolledWindow body_scroll_;
   BodyView body_view_;
   Gtk::Statusbar status_;

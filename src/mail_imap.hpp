@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace dispatch {
 
@@ -15,13 +16,14 @@ struct ImapAccount {
   std::string password;
 };
 
-struct InboxSyncResult {
+struct MailSyncResult {
   int downloaded = 0;
   int total = 0;
+  int folders = 0;
   std::string error;
 };
 
 /* Blocking. Call from a worker, not the UI thread. */
-InboxSyncResult sync_inbox(const ImapAccount& account);
+MailSyncResult sync_mailboxes(const ImapAccount& account);
 
 }  // namespace dispatch

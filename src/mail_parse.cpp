@@ -191,6 +191,22 @@ void parse_rfc822(const std::string& raw, MailMessage& out)
       g_free(s);
     }
   }
+  InternetAddressList* to = g_mime_message_get_to(msg);
+  if (to) {
+    gchar* s = internet_address_list_to_string(to, nullptr, FALSE);
+    if (s) {
+      out.to = s;
+      g_free(s);
+    }
+  }
+  InternetAddressList* cc = g_mime_message_get_cc(msg);
+  if (cc) {
+    gchar* s = internet_address_list_to_string(cc, nullptr, FALSE);
+    if (s) {
+      out.cc = s;
+      g_free(s);
+    }
+  }
   const char* subj = g_mime_message_get_subject(msg);
   if (subj)
     out.subject = subj;
