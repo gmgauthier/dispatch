@@ -52,6 +52,7 @@ executable(
   'src/mail_imap.cpp',
   'src/mail_smtp.cpp',
   'src/compose_window.cpp',
+  'src/compose_format.cpp',
   'src/ephemeris_contacts.cpp',
   include_directories: inc,
   dependencies: [gtkmm, libxml, libsoup, fontconfig, etpan, gmime],

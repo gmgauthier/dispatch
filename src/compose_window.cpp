@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Unlicense */
 
 #include "compose_window.hpp"
+#include "compose_format.hpp"
 #include "ephemeris_contacts.hpp"
 #include "mail_parse.hpp"
 #include "mail_smtp.hpp"
@@ -28,10 +29,36 @@ ComposeWindow::ComposeWindow(const Settings& settings,
   subject_.set_hexpand(true);
   to_.set_activates_default(false);
   body_.set_wrap_mode(Gtk::WRAP_WORD_CHAR);
+  compose_ensure_tags(body_.get_buffer());
+  body_.signal_key_press_event().connect(sigc::mem_fun(*this, &ComposeWindow::on_body_key), false);
   body_scroll_.set_policy(Gtk::POLICY_AUTOMATIC, Gtk::POLICY_AUTOMATIC);
   body_scroll_.add(body_);
   body_scroll_.set_hexpand(true);
   body_scroll_.set_vexpand(true);
+
+  auto style_fmt = [](Gtk::Button& b, const char* tip) {
+    b.set_tooltip_text(tip);
+    b.set_can_focus(false);
+  };
+  style_fmt(btn_bold_, "Bold (Ctrl+B)");
+  style_fmt(btn_italic_, "Italic (Ctrl+I)");
+  style_fmt(btn_underline_, "Underline (Ctrl+U)");
+  style_fmt(btn_heading_, "Heading");
+  style_fmt(btn_list_, "Bullet list");
+  style_fmt(btn_quote_, "Quote");
+  btn_bold_.signal_clicked().connect(sigc::mem_fun(*this, &ComposeWindow::on_fmt_bold));
+  btn_italic_.signal_clicked().connect(sigc::mem_fun(*this, &ComposeWindow::on_fmt_italic));
+  btn_underline_.signal_clicked().connect(sigc::mem_fun(*this, &ComposeWindow::on_fmt_underline));
+  btn_heading_.signal_clicked().connect(sigc::mem_fun(*this, &ComposeWindow::on_fmt_heading));
+  btn_list_.signal_clicked().connect(sigc::mem_fun(*this, &ComposeWindow::on_fmt_list));
+  btn_quote_.signal_clicked().connect(sigc::mem_fun(*this, &ComposeWindow::on_fmt_quote));
+  fmt_.pack_start(btn_bold_, Gtk::PACK_SHRINK);
+  fmt_.pack_start(btn_italic_, Gtk::PACK_SHRINK);
+  fmt_.pack_start(btn_underline_, Gtk::PACK_SHRINK);
+  fmt_.pack_start(*Gtk::manage(new Gtk::Separator(Gtk::ORIENTATION_VERTICAL)), Gtk::PACK_SHRINK);
+  fmt_.pack_start(btn_heading_, Gtk::PACK_SHRINK);
+  fmt_.pack_start(btn_list_, Gtk::PACK_SHRINK);
+  fmt_.pack_start(btn_quote_, Gtk::PACK_SHRINK);
 
   grid_.set_column_spacing(8);
   grid_.set_row_spacing(6);
@@ -76,9 +103,17 @@ ComposeWindow::ComposeWindow(const Settings& settings,
 
   root_.set_border_width(12);
   root_.pack_start(grid_, Gtk::PACK_SHRINK);
+  root_.pack_start(fmt_, Gtk::PACK_SHRINK);
   root_.pack_start(body_scroll_, Gtk::PACK_EXPAND_WIDGET);
   root_.pack_start(buttons_, Gtk::PACK_SHRINK);
   add(root_);
+
+  auto acc = Gtk::AccelGroup::create();
+  add_accel_group(acc);
+  btn_bold_.add_accelerator("clicked", acc, GDK_KEY_b, Gdk::CONTROL_MASK, Gtk::ACCEL_VISIBLE);
+  btn_italic_.add_accelerator("clicked", acc, GDK_KEY_i, Gdk::CONTROL_MASK, Gtk::ACCEL_VISIBLE);
+  btn_underline_.add_accelerator("clicked", acc, GDK_KEY_u, Gdk::CONTROL_MASK, Gtk::ACCEL_VISIBLE);
+
   show_all();
 
   send_conn_ = send_done_.connect(sigc::mem_fun(*this, &ComposeWindow::on_send_done));
@@ -173,6 +208,47 @@ void ComposeWindow::on_pick(Gtk::Entry& dest)
   dest.set_text(cur);
 }
 
+void ComposeWindow::on_fmt_bold()
+{
+  compose_toggle_inline(body_.get_buffer(), "strong");
+}
+
+void ComposeWindow::on_fmt_italic()
+{
+  compose_toggle_inline(body_.get_buffer(), "em");
+}
+
+void ComposeWindow::on_fmt_underline()
+{
+  compose_toggle_inline(body_.get_buffer(), "u");
+}
+
+void ComposeWindow::on_fmt_heading()
+{
+  compose_apply_paragraph(body_.get_buffer(), "h2");
+}
+
+void ComposeWindow::on_fmt_list()
+{
+  compose_toggle_list(body_.get_buffer());
+}
+
+void ComposeWindow::on_fmt_quote()
+{
+  compose_apply_paragraph(body_.get_buffer(), "blockquote");
+}
+
+bool ComposeWindow::on_body_key(GdkEventKey* event)
+{
+  if (!event)
+    return false;
+  if (event->keyval != GDK_KEY_Return && event->keyval != GDK_KEY_KP_Enter)
+    return false;
+  if (event->state & (Gdk::CONTROL_MASK | Gdk::MOD1_MASK))
+    return false;
+  return compose_list_handle_return(body_.get_buffer());
+}
+
 void ComposeWindow::on_send()
 {
   if (send_thread_.joinable())
@@ -190,9 +266,11 @@ void ComposeWindow::on_send()
 
   std::vector<std::string> rcpt = to;
   rcpt.insert(rcpt.end(), cc.begin(), cc.end());
-  const std::string rfc822 =
-      build_rfc822(settings_.mail_user, to, cc, subject_.get_text().raw(),
-                   body_.get_buffer()->get_text().raw(), in_reply_to_, references_);
+  const auto buf = body_.get_buffer();
+  const std::string plain = compose_to_plain(buf);
+  const std::string html = compose_to_html(buf);
+  const std::string rfc822 = build_rfc822(settings_.mail_user, to, cc, subject_.get_text().raw(),
+                                          plain, html, in_reply_to_, references_);
   if (rfc822.empty()) {
     status_.set_text("Could not build the message.");
     return;

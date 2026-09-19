@@ -225,6 +225,7 @@ void BodyView::ensure_tags()
   });
   mk("em", [](auto t) { t->property_style() = Pango::STYLE_ITALIC; });
   mk("strong", [](auto t) { t->property_weight() = Pango::WEIGHT_BOLD; });
+  mk("u", [](auto t) { t->property_underline() = Pango::UNDERLINE_SINGLE; });
   mk("pre", [](auto t) { t->property_family() = "monospace"; });
   mk("blockquote", [](auto t) {
     t->property_left_margin() = 20;
@@ -526,6 +527,8 @@ void BodyView::insert_text(const std::string& text, const std::vector<Glib::ustr
       }
       tmp.push_back(static_cast<char>(ch));
     }
+    if (space && !tmp.empty())
+      tmp.push_back(' ');
     cooked.swap(tmp);
     if (cooked.empty())
       return;
@@ -776,6 +779,8 @@ void BodyView::walk(xmlNode* node, int list_depth)
       pushed = "em";
     else if (name == "strong" || name == "b")
       pushed = "strong";
+    else if (name == "u")
+      pushed = "u";
     else if (name == "pre")
       pushed = "pre";
     else if (name == "code")
@@ -794,6 +799,8 @@ void BodyView::walk(xmlNode* node, int list_depth)
       insert_text(std::string(static_cast<size_t>(list_depth + 1) * 2, ' ') + "• ", tag_stack_);
 
     if (name == "a" && !href.empty())
+      pad_space();
+    else if (name == "em" || name == "i" || name == "u" || name == "strong" || name == "b")
       pad_space();
 
     if (!pushed.empty())
@@ -815,6 +822,8 @@ void BodyView::walk(xmlNode* node, int list_depth)
     }
     if (!pushed.empty() && !tag_stack_.empty() && tag_stack_.back() == pushed)
       tag_stack_.pop_back();
+    if (name == "em" || name == "i" || name == "u" || name == "strong" || name == "b")
+      pad_space();
 
     if (name == "p" || name == "blockquote" || name == "h1" || name == "h2" || name == "h3" ||
         name == "h4" || name == "h5" || name == "h6" || name == "pre" || name == "figure" ||
