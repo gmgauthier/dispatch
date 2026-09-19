@@ -90,6 +90,16 @@ class MainWindow : public Gtk::Window {
   void on_appearance();
   void apply_appearance();
   void on_mail_clicked();
+  void on_feed_clicked();
+  void on_ephemeris();
+  void apply_mode(bool mail);
+  void fill_mail_folders();
+  void select_mail_folder(int index);
+  void on_folder_cell_data(Gtk::CellRenderer* cell, const Gtk::TreeModel::const_iterator& it);
+  bool on_folder_motion(GdkEventMotion* event);
+  bool on_folder_leave(GdkEventCrossing* event);
+  bool on_folder_button(GdkEventButton* event);
+  bool on_folder_key(GdkEventKey* event);
   void style_nav_column(Gtk::TreeView& view);
   void on_feed_cell_data(Gtk::CellRenderer* cell, const Gtk::TreeModel::const_iterator& it);
   void on_headline_cell_data(Gtk::CellRenderer* cell, const Gtk::TreeModel::const_iterator& it);
@@ -111,9 +121,17 @@ class MainWindow : public Gtk::Window {
   Gtk::Box root_{Gtk::ORIENTATION_VERTICAL, 0};
   Gtk::MenuBar menubar_;
   Gtk::Box toolbar_{Gtk::ORIENTATION_HORIZONTAL, 4};
+  Gtk::Box feed_tools_{Gtk::ORIENTATION_HORIZONTAL, 4};
+  Gtk::Box mail_tools_{Gtk::ORIENTATION_HORIZONTAL, 4};
   Gtk::Button btn_refresh_{"Refresh"};
   Gtk::Button btn_subscribe_{"Subscribe…"};
   Gtk::Button btn_toggle_unread_{"Toggle Unread"};
+  Gtk::Button btn_send_recv_{"Send/Recv"};
+  Gtk::Button btn_new_mail_{"New Mail"};
+  Gtk::Button btn_reply_{"Reply"};
+  Gtk::Button btn_forward_{"Forward"};
+  Gtk::Button btn_delete_{"Delete"};
+  Gtk::Button btn_ephemeris_{"Ephemeris"};
   Gtk::RadioButton btn_mail_{"MAIL"};
   Gtk::RadioButton btn_feed_{"FEED"};
   Gtk::CheckMenuItem* view_preview_item_ = nullptr;
@@ -122,12 +140,18 @@ class MainWindow : public Gtk::Window {
 
   Gtk::Paned outer_{Gtk::ORIENTATION_HORIZONTAL};
   Gtk::Paned inner_{Gtk::ORIENTATION_VERTICAL};
+  Gtk::Stack left_stack_;
+  Gtk::Stack list_stack_;
   Gtk::Frame head_frame_;
   Gtk::Frame body_frame_;
   Gtk::ScrolledWindow feed_scroll_;
   Gtk::TreeView feed_view_;
+  Gtk::ScrolledWindow folder_scroll_;
+  Gtk::TreeView folder_view_;
   Gtk::ScrolledWindow headline_scroll_;
   Gtk::TreeView headline_view_;
+  Gtk::ScrolledWindow mail_scroll_;
+  Gtk::TreeView mail_view_;
   Gtk::ScrolledWindow body_scroll_;
   BodyView body_view_;
   Gtk::Statusbar status_;
@@ -145,6 +169,17 @@ class MainWindow : public Gtk::Window {
   Gtk::TreeModelColumn<int> col_headline_index_;
   Gtk::TreeModelColumnRecord headline_cols_;
 
+  Glib::RefPtr<Gtk::ListStore> folder_store_;
+  Gtk::TreeModelColumn<Glib::ustring> col_folder_name_;
+  Gtk::TreeModelColumn<int> col_folder_index_;
+  Gtk::TreeModelColumnRecord folder_cols_;
+
+  Glib::RefPtr<Gtk::ListStore> mail_store_;
+  Gtk::TreeModelColumn<Glib::ustring> col_mail_from_;
+  Gtk::TreeModelColumn<Glib::ustring> col_mail_subject_;
+  Gtk::TreeModelColumn<Glib::ustring> col_mail_date_;
+  Gtk::TreeModelColumnRecord mail_cols_;
+
   Settings settings_;
   std::vector<Feed> feeds_;
   std::vector<PendingFetch> fetch_queue_;
@@ -156,6 +191,10 @@ class MainWindow : public Gtk::Window {
   Gtk::TreeModel::Path headline_current_path_;
   Gtk::TreeModel::Path headline_hover_path_;
   bool preview_visible_ = true;
+  bool mail_mode_ = true;
+  int current_folder_ = 0;
+  Gtk::TreeModel::Path folder_current_path_;
+  Gtk::TreeModel::Path folder_hover_path_;
 
   Glib::Dispatcher fetch_done_;
   sigc::connection fetch_conn_;

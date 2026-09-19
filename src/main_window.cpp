@@ -8,7 +8,9 @@
 #include "subscribe_dialog.hpp"
 
 #include <glib.h>
+#include <glibmm/spawn.h>
 
+#include <algorithm>
 #include <iostream>
 
 namespace dispatch {
@@ -127,17 +129,20 @@ MainWindow::MainWindow()
   show_all();
   restore_layout();
   fill_feeds();
-  if (feeds_.empty()) {
-    set_status("No feeds. Subscribe… to add a URL.");
-  } else {
-    int idx = find_url(u8(settings_.last_url));
-    if (idx < 0)
-      idx = 0;
-    select_feed(idx);
-    set_status(Glib::ustring::compose("%1 feeds. Refreshing…", feeds_.size()));
-    on_refresh_all();
+  fill_mail_folders();
+  apply_mode(settings_.mail_mode);
+  if (!mail_mode_) {
+    if (feeds_.empty()) {
+      set_status("No feeds. Subscribe… to add a URL.");
+    } else {
+      int idx = find_url(u8(settings_.last_url));
+      if (idx < 0)
+        idx = 0;
+      select_feed(idx);
+      set_status(Glib::ustring::compose("%1 feeds. Refreshing…", feeds_.size()));
+      on_refresh_all();
+    }
   }
-  start_refresh_timer();
 }
 
 MainWindow::~MainWindow()
@@ -234,22 +239,43 @@ void MainWindow::build_menu()
 void MainWindow::build_toolbar()
 {
   toolbar_.set_border_width(4);
-  toolbar_.pack_start(btn_refresh_, Gtk::PACK_SHRINK);
-  toolbar_.pack_start(btn_subscribe_, Gtk::PACK_SHRINK);
-  toolbar_.pack_start(btn_toggle_unread_, Gtk::PACK_SHRINK);
+
+  feed_tools_.pack_start(btn_refresh_, Gtk::PACK_SHRINK);
+  feed_tools_.pack_start(btn_subscribe_, Gtk::PACK_SHRINK);
+  feed_tools_.pack_start(btn_toggle_unread_, Gtk::PACK_SHRINK);
+
+  btn_send_recv_.set_sensitive(false);
+  btn_new_mail_.set_sensitive(false);
+  btn_reply_.set_sensitive(false);
+  btn_forward_.set_sensitive(false);
+  btn_delete_.set_sensitive(false);
+  mail_tools_.pack_start(btn_send_recv_, Gtk::PACK_SHRINK);
+  mail_tools_.pack_start(btn_new_mail_, Gtk::PACK_SHRINK);
+  mail_tools_.pack_start(btn_reply_, Gtk::PACK_SHRINK);
+  mail_tools_.pack_start(btn_forward_, Gtk::PACK_SHRINK);
+  mail_tools_.pack_start(btn_delete_, Gtk::PACK_SHRINK);
+
+  toolbar_.pack_start(feed_tools_, Gtk::PACK_SHRINK);
+  toolbar_.pack_start(mail_tools_, Gtk::PACK_SHRINK);
 
   auto* spacer = Gtk::manage(new Gtk::Box());
   spacer->set_hexpand(true);
   toolbar_.pack_start(*spacer, Gtk::PACK_EXPAND_WIDGET);
+
+  btn_ephemeris_.set_tooltip_text("Open Ephemeris");
+  btn_ephemeris_.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_ephemeris));
+  toolbar_.pack_start(btn_ephemeris_, Gtk::PACK_SHRINK);
 
   Gtk::RadioButtonGroup mode;
   btn_mail_.set_group(mode);
   btn_feed_.set_group(mode);
   btn_mail_.set_mode(false);
   btn_feed_.set_mode(false);
-  btn_feed_.set_active(true);
-  btn_mail_.set_tooltip_text("Coming soon...");
+  btn_mail_.set_active(true);
+  btn_mail_.set_tooltip_text("Mail");
+  btn_feed_.set_tooltip_text("Feed");
   btn_mail_.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_mail_clicked));
+  btn_feed_.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_feed_clicked));
   toolbar_.pack_start(btn_mail_, Gtk::PACK_SHRINK);
   toolbar_.pack_start(btn_feed_, Gtk::PACK_SHRINK);
 
@@ -371,6 +397,88 @@ void MainWindow::build_body()
   headline_scroll_.add(headline_view_);
   headline_scroll_.get_style_context()->add_class("dispatch-headlines-scroll");
 
+  folder_cols_.add(col_folder_name_);
+  folder_cols_.add(col_folder_index_);
+  folder_store_ = Gtk::ListStore::create(folder_cols_);
+  folder_view_.set_model(folder_store_);
+  {
+    auto* name_cell = Gtk::manage(new Gtk::CellRendererText());
+    name_cell->property_weight() = Pango::WEIGHT_BOLD;
+    name_cell->property_xpad() = 8;
+    name_cell->property_ypad() = 4;
+    name_cell->property_ellipsize() = Pango::ELLIPSIZE_END;
+    folder_view_.append_column("Folders", *name_cell);
+    if (auto* col = folder_view_.get_column(0)) {
+      col->add_attribute(*name_cell, "text", col_folder_name_);
+      col->set_sizing(Gtk::TREE_VIEW_COLUMN_FIXED);
+      col->set_expand(true);
+      col->set_min_width(60);
+    }
+  }
+  folder_view_.get_style_context()->add_class("dispatch-tree");
+  style_nav_column(folder_view_);
+  if (auto* col = folder_view_.get_column(0)) {
+    if (auto* cell = col->get_first_cell())
+      col->set_cell_data_func(*cell, sigc::mem_fun(*this, &MainWindow::on_folder_cell_data));
+  }
+  folder_view_.signal_motion_notify_event().connect(
+      sigc::mem_fun(*this, &MainWindow::on_folder_motion), false);
+  folder_view_.signal_leave_notify_event().connect(
+      sigc::mem_fun(*this, &MainWindow::on_folder_leave), false);
+  folder_view_.signal_button_press_event().connect(
+      sigc::mem_fun(*this, &MainWindow::on_folder_button), false);
+  folder_view_.signal_key_press_event().connect(sigc::mem_fun(*this, &MainWindow::on_folder_key),
+                                                false);
+  folder_scroll_.set_policy(Gtk::POLICY_NEVER, Gtk::POLICY_AUTOMATIC);
+  folder_scroll_.add(folder_view_);
+  folder_scroll_.set_size_request(180, -1);
+
+  mail_cols_.add(col_mail_from_);
+  mail_cols_.add(col_mail_subject_);
+  mail_cols_.add(col_mail_date_);
+  mail_store_ = Gtk::ListStore::create(mail_cols_);
+  mail_view_.set_model(mail_store_);
+  {
+    auto* from_cell = Gtk::manage(new Gtk::CellRendererText());
+    from_cell->property_xpad() = 1;
+    from_cell->property_ypad() = 1;
+    from_cell->property_ellipsize() = Pango::ELLIPSIZE_END;
+    mail_view_.append_column("From", *from_cell);
+    if (auto* col = mail_view_.get_column(0)) {
+      col->add_attribute(*from_cell, "text", col_mail_from_);
+      col->set_sizing(Gtk::TREE_VIEW_COLUMN_FIXED);
+      col->set_expand(false);
+      col->set_fixed_width(140);
+    }
+    auto* subj_cell = Gtk::manage(new Gtk::CellRendererText());
+    subj_cell->property_xpad() = 1;
+    subj_cell->property_ypad() = 1;
+    subj_cell->property_ellipsize() = Pango::ELLIPSIZE_END;
+    mail_view_.append_column("Subject", *subj_cell);
+    if (auto* col = mail_view_.get_column(1)) {
+      col->add_attribute(*subj_cell, "text", col_mail_subject_);
+      col->set_sizing(Gtk::TREE_VIEW_COLUMN_FIXED);
+      col->set_expand(true);
+      col->set_min_width(80);
+    }
+    auto* date_cell = Gtk::manage(new Gtk::CellRendererText());
+    date_cell->property_xpad() = 1;
+    date_cell->property_ypad() = 1;
+    date_cell->property_xalign() = 1.0;
+    mail_view_.append_column("Date", *date_cell);
+    if (auto* col = mail_view_.get_column(2)) {
+      col->add_attribute(*date_cell, "text", col_mail_date_);
+      col->set_sizing(Gtk::TREE_VIEW_COLUMN_FIXED);
+      col->set_expand(false);
+      col->set_fixed_width(108);
+    }
+  }
+  mail_view_.get_style_context()->add_class("dispatch-headlines");
+  style_nav_column(mail_view_);
+  mail_scroll_.set_policy(Gtk::POLICY_NEVER, Gtk::POLICY_AUTOMATIC);
+  mail_scroll_.add(mail_view_);
+  mail_scroll_.get_style_context()->add_class("dispatch-headlines-scroll");
+
   body_scroll_.set_policy(Gtk::POLICY_AUTOMATIC, Gtk::POLICY_AUTOMATIC);
   body_scroll_.add(body_view_);
   body_view_.set_can_focus(true);
@@ -394,7 +502,10 @@ void MainWindow::build_body()
       false);
 
   head_frame_.set_shadow_type(Gtk::SHADOW_IN);
-  head_frame_.add(headline_scroll_);
+  list_stack_.set_transition_type(Gtk::STACK_TRANSITION_TYPE_NONE);
+  list_stack_.add(headline_scroll_, "feed");
+  list_stack_.add(mail_scroll_, "mail");
+  head_frame_.add(list_stack_);
   body_frame_.set_shadow_type(Gtk::SHADOW_IN);
   body_frame_.add(body_scroll_);
 
@@ -403,7 +514,10 @@ void MainWindow::build_body()
   inner_.pack2(body_frame_, true, false);
   inner_.set_position(220);
 
-  outer_.pack1(feed_scroll_, false, false);
+  left_stack_.set_transition_type(Gtk::STACK_TRANSITION_TYPE_NONE);
+  left_stack_.add(feed_scroll_, "feed");
+  left_stack_.add(folder_scroll_, "mail");
+  outer_.pack1(left_stack_, false, false);
   outer_.pack2(inner_, true, false);
   outer_.set_position(200);
 
@@ -527,6 +641,7 @@ void MainWindow::persist()
   settings_.preview = preview_visible_;
   if (current_feed_ >= 0 && current_feed_ < static_cast<int>(feeds_.size()))
     settings_.last_url = feeds_[static_cast<size_t>(current_feed_)].url.raw();
+  settings_.mail_mode = mail_mode_;
   settings_.save();
 }
 
@@ -555,7 +670,7 @@ void MainWindow::start_refresh_timer()
   const unsigned sec = static_cast<unsigned>(settings_.refresh_minutes) * 60u;
   refresh_timer_ = Glib::signal_timeout().connect_seconds(
       [this]() {
-        if (!feeds_.empty() && !fetching_)
+        if (!mail_mode_ && !feeds_.empty() && !fetching_)
           on_refresh_all();
         return true;
       },
@@ -985,9 +1100,144 @@ void MainWindow::on_appearance()
     persist();
 }
 
+void MainWindow::fill_mail_folders()
+{
+  folder_store_->clear();
+  static const char* kFolders[] = {"Inbox", "Sent", "Drafts", "Outbox", "Trash"};
+  for (int i = 0; i < 5; ++i) {
+    auto it = folder_store_->append();
+    (*it)[col_folder_name_] = kFolders[i];
+    (*it)[col_folder_index_] = i;
+  }
+  select_mail_folder(0);
+}
+
+void MainWindow::select_mail_folder(int index)
+{
+  current_folder_ = index;
+  if (index >= 0 && index < 5)
+    folder_current_path_ = Gtk::TreeModel::Path(std::to_string(index));
+  else
+    folder_current_path_.clear();
+  folder_view_.queue_draw();
+  mail_store_->clear();
+  body_view_.load({}, {}, {});
+  static const char* kFolders[] = {"Inbox", "Sent", "Drafts", "Outbox", "Trash"};
+  if (index >= 0 && index < 5)
+    set_status(Glib::ustring(kFolders[index]) + " — 0 messages.");
+}
+
+void MainWindow::apply_mode(bool mail)
+{
+  mail_mode_ = mail;
+  applying_ui_ = true;
+  if (mail)
+    btn_mail_.set_active(true);
+  else
+    btn_feed_.set_active(true);
+  applying_ui_ = false;
+
+  left_stack_.set_visible_child(mail ? "mail" : "feed");
+  list_stack_.set_visible_child(mail ? "mail" : "feed");
+  mail_tools_.set_visible(mail);
+  feed_tools_.set_visible(!mail);
+
+  if (mail) {
+    refresh_timer_.disconnect();
+    select_mail_folder(current_folder_ >= 0 ? current_folder_ : 0);
+    folder_view_.grab_focus();
+  } else {
+    if (feeds_.empty())
+      set_status("No feeds. Subscribe… to add a URL.");
+    else if (current_feed_ < 0)
+      select_feed(0);
+    else {
+      fill_headlines();
+      set_status(Glib::ustring::compose("%1 unread", total_unread()));
+    }
+    start_refresh_timer();
+    feed_view_.grab_focus();
+  }
+}
+
 void MainWindow::on_mail_clicked()
 {
-  btn_feed_.set_active(true);
+  if (applying_ui_)
+    return;
+  if (btn_mail_.get_active())
+    apply_mode(true);
+}
+
+void MainWindow::on_feed_clicked()
+{
+  if (applying_ui_)
+    return;
+  if (btn_feed_.get_active())
+    apply_mode(false);
+}
+
+void MainWindow::on_ephemeris()
+{
+  gchar* found = g_find_program_in_path("ephemeris");
+  if (!found) {
+    set_status("Ephemeris is not installed.");
+    return;
+  }
+  const std::string cmd = Glib::shell_quote(found);
+  g_free(found);
+  try {
+    Glib::spawn_command_line_async(cmd);
+  } catch (const Glib::Error& e) {
+    set_status(Glib::ustring::compose("Could not open Ephemeris: %1", e.what()));
+  }
+}
+
+void MainWindow::on_folder_cell_data(Gtk::CellRenderer* cell,
+                                     const Gtk::TreeModel::const_iterator& it)
+{
+  if (!it)
+    return;
+  paint_nav_cell(cell, folder_store_->get_path(it), folder_current_path_, folder_hover_path_);
+}
+
+bool MainWindow::on_folder_motion(GdkEventMotion* event)
+{
+  return nav_motion(folder_view_, folder_hover_path_, event);
+}
+
+bool MainWindow::on_folder_leave(GdkEventCrossing* event)
+{
+  return nav_leave(folder_view_, folder_hover_path_, event);
+}
+
+bool MainWindow::on_folder_button(GdkEventButton* event)
+{
+  if (!event || event->type != GDK_BUTTON_PRESS || event->button != 1)
+    return false;
+  Gtk::TreeModel::Path path;
+  if (!path_at_bin_event(folder_view_, event->window, event->x, event->y, path))
+    return false;
+  auto it = folder_store_->get_iter(path);
+  if (!it)
+    return false;
+  select_mail_folder((*it)[col_folder_index_]);
+  folder_view_.grab_focus();
+  return true;
+}
+
+bool MainWindow::on_folder_key(GdkEventKey* event)
+{
+  if (!event)
+    return false;
+  if (event->keyval == GDK_KEY_Up) {
+    select_mail_folder(std::max(0, current_folder_ - 1));
+    return true;
+  }
+  if (event->keyval == GDK_KEY_Down) {
+    select_mail_folder(std::min(4, current_folder_ + 1));
+    return true;
+  }
+  return false;
 }
 
 void MainWindow::on_feed_cell_data(Gtk::CellRenderer* cell,
