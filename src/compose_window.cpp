@@ -10,11 +10,12 @@
 namespace dispatch {
 
 ComposeWindow::ComposeWindow(const Settings& settings,
-                             std::function<void(bool sent, std::string error)> done)
+                             std::function<void(bool sent, std::string error)> done,
+                             ComposeFill fill)
     : settings_(settings),
       done_(std::move(done))
 {
-  set_title("New Mail");
+  set_title(fill.title.empty() ? "New Mail" : fill.title);
   set_default_size(560, 420);
   get_style_context()->add_class("dispatch-window");
 
@@ -68,6 +69,16 @@ ComposeWindow::ComposeWindow(const Settings& settings,
   show_all();
 
   send_conn_ = send_done_.connect(sigc::mem_fun(*this, &ComposeWindow::on_send_done));
+  if (!fill.to.empty())
+    to_.set_text(fill.to);
+  if (!fill.cc.empty())
+    cc_.set_text(fill.cc);
+  if (!fill.subject.empty())
+    subject_.set_text(fill.subject);
+  if (!fill.body.empty())
+    body_.get_buffer()->set_text(fill.body);
+  in_reply_to_ = fill.in_reply_to;
+  references_ = fill.references;
 }
 
 ComposeWindow::~ComposeWindow()
@@ -94,8 +105,9 @@ void ComposeWindow::on_send()
 
   std::vector<std::string> rcpt = to;
   rcpt.insert(rcpt.end(), cc.begin(), cc.end());
-  const std::string rfc822 = build_rfc822(settings_.mail_user, to, cc, subject_.get_text().raw(),
-                                          body_.get_buffer()->get_text().raw());
+  const std::string rfc822 =
+      build_rfc822(settings_.mail_user, to, cc, subject_.get_text().raw(),
+                   body_.get_buffer()->get_text().raw(), in_reply_to_, references_);
   if (rfc822.empty()) {
     status_.set_text("Could not build the message.");
     return;
