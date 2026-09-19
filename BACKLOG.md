@@ -1,12 +1,12 @@
 # Dispatch backlog
 
-Current release: **v0.2.0**. Last updated: 2026-09-19.
+Current release: **v1.0.0**. Last updated: 2026-09-19.
 
 Outlook Express shell. Feed (RSS 2 / Atom) and Mail are modes of this binary, not a second guest app. Binary `dispatch`. Suite catalog: `lcos-projects/PRODUCT-BACKLOG.md`. Design: `lcos-projects/DISPATCH.md`. Mail plan: `lcos-projects/DISPATCH-MAIL.md`. Plan: [DEVELOPMENT.md](DEVELOPMENT.md). How to land work: [DEVELOPMENT.md](DEVELOPMENT.md#process) — `feature/` / `fix/` branches, PRs to `master`, lint gate, semver on shipped PRs.
 
 ## High Priority
 
-- **Mail M7 — rich text.** Compose format bar (the Feed HTML subset); `multipart/alternative`. Not mixed into M0–M6.
+None. v1.0.0 is the current ship.
 
 ## Low Priority
 
@@ -33,5 +33,9 @@ Outlook Express shell. Feed (RSS 2 / Atom) and Mail are modes of this binary, no
 - Re-theming Liferea
 
 ## Shipped
+
+**v1.0.0** — Mail M7 rich compose (`multipart/alternative`); IMAP LIST folders after Trash; Outlook Express From/To/Cc/Date/Subject headers; server-side delete and unread; RSS/Atom item cache under `~/.local/share/dispatch/feeds/`.
+
+**v0.2.0** — Mail M0–M5: IMAP/SMTP STARTTLS, local Maildir, compose, threads, Ephemeris address picker. Feed mode as v0.1.x.
 
 **v0.1.0 (M0–M6)** — Stacked panes (feeds left, headlines over body); View → Preview Pane; article window on double-click / Enter; subscribe / unsubscribe; unread counts; OPML import / export; `Gtk::TextView` HTML subset (links, bold, headings, lists; images in-pane; mp3/mp4 Play via the system handler); Appearance; persist last feed / sash / preview-visible / window size; auto-refresh while open (15 min); `[MAIL]` / `[FEED]` mode switch with Mail stubbed; `.deb` / tarball / AppImage. Config: `~/.config/dispatch/dispatch.ini`.
