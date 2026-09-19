@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: Unlicense */
 
 #include "compose_window.hpp"
+#include "ephemeris_contacts.hpp"
 #include "mail_parse.hpp"
 #include "mail_smtp.hpp"
 #include "mail_store.hpp"
@@ -42,13 +43,25 @@ ComposeWindow::ComposeWindow(const Settings& settings,
   to_l->set_halign(Gtk::ALIGN_START);
   to_l->set_mnemonic_widget(to_);
   grid_.attach(*to_l, 0, row, 1, 1);
-  grid_.attach(to_, 1, row, 1, 1);
+  auto* to_row = Gtk::manage(new Gtk::Box(Gtk::ORIENTATION_HORIZONTAL, 4));
+  to_row->pack_start(to_, Gtk::PACK_EXPAND_WIDGET);
+  auto* btn_to = Gtk::manage(new Gtk::Button("…"));
+  btn_to->set_tooltip_text("Choose from Ephemeris");
+  btn_to->signal_clicked().connect([this]() { on_pick(to_); });
+  to_row->pack_start(*btn_to, Gtk::PACK_SHRINK);
+  grid_.attach(*to_row, 1, row, 1, 1);
   ++row;
   auto* cc_l = Gtk::manage(new Gtk::Label("_Cc", true));
   cc_l->set_halign(Gtk::ALIGN_START);
   cc_l->set_mnemonic_widget(cc_);
   grid_.attach(*cc_l, 0, row, 1, 1);
-  grid_.attach(cc_, 1, row, 1, 1);
+  auto* cc_row = Gtk::manage(new Gtk::Box(Gtk::ORIENTATION_HORIZONTAL, 4));
+  cc_row->pack_start(cc_, Gtk::PACK_EXPAND_WIDGET);
+  auto* btn_cc = Gtk::manage(new Gtk::Button("…"));
+  btn_cc->set_tooltip_text("Choose from Ephemeris");
+  btn_cc->signal_clicked().connect([this]() { on_pick(cc_); });
+  cc_row->pack_start(*btn_cc, Gtk::PACK_SHRINK);
+  grid_.attach(*cc_row, 1, row, 1, 1);
   ++row;
   auto* sub_l = Gtk::manage(new Gtk::Label("_Subject", true));
   sub_l->set_halign(Gtk::ALIGN_START);
@@ -86,6 +99,78 @@ ComposeWindow::~ComposeWindow()
   send_conn_.disconnect();
   if (send_thread_.joinable())
     send_thread_.join();
+}
+
+void ComposeWindow::on_pick(Gtk::Entry& dest)
+{
+  const auto people = load_ephemeris_emails();
+  if (people.empty()) {
+    status_.set_text("No email addresses in the current Ephemeris binder.");
+    return;
+  }
+
+  Gtk::Dialog dlg("Ephemeris contacts", *this, true);
+  dlg.set_default_size(420, 320);
+  dlg.add_button("_Cancel", Gtk::RESPONSE_CANCEL);
+  dlg.add_button("_Add", Gtk::RESPONSE_OK);
+  dlg.set_default_response(Gtk::RESPONSE_OK);
+
+  Gtk::TreeModelColumn<Glib::ustring> col_name;
+  Gtk::TreeModelColumn<Glib::ustring> col_email;
+  Gtk::TreeModelColumnRecord cols;
+  cols.add(col_name);
+  cols.add(col_email);
+  auto store = Gtk::ListStore::create(cols);
+  for (const auto& p : people) {
+    auto it = store->append();
+    (*it)[col_name] = p.name;
+    (*it)[col_email] = p.email;
+  }
+  Gtk::TreeView view(store);
+  view.append_column("Name", col_name);
+  view.append_column("Email", col_email);
+  view.set_headers_visible(true);
+  view.get_selection()->set_mode(Gtk::SELECTION_MULTIPLE);
+  Gtk::ScrolledWindow scroll;
+  scroll.set_policy(Gtk::POLICY_AUTOMATIC, Gtk::POLICY_AUTOMATIC);
+  scroll.add(view);
+  dlg.get_content_area()->set_border_width(8);
+  dlg.get_content_area()->pack_start(scroll, Gtk::PACK_EXPAND_WIDGET);
+  dlg.show_all();
+  if (dlg.run() != Gtk::RESPONSE_OK)
+    return;
+
+  std::vector<Glib::ustring> add;
+  view.get_selection()->selected_foreach(
+      [&](const Gtk::TreeModel::Path&, const Gtk::TreeModel::iterator& it) {
+        const Glib::ustring email = (*it)[col_email];
+        const Glib::ustring name = (*it)[col_name];
+        if (email.empty())
+          return;
+        if (name.empty())
+          add.push_back(email);
+        else
+          add.push_back(name + " <" + email + ">");
+      });
+  if (add.empty())
+    return;
+  Glib::ustring cur = dest.get_text();
+  auto b = cur.begin();
+  auto e = cur.end();
+  while (e != b) {
+    auto p = e;
+    --p;
+    if (*p != ' ' && *p != '\t' && *p != ',')
+      break;
+    e = p;
+  }
+  cur = Glib::ustring(b, e);
+  for (const auto& a : add) {
+    if (!cur.empty())
+      cur += ", ";
+    cur += a;
+  }
+  dest.set_text(cur);
 }
 
 void ComposeWindow::on_send()

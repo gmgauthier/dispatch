@@ -31,6 +31,7 @@ class ComposeWindow : public Gtk::Window {
  private:
   void on_send();
   void on_send_done();
+  void on_pick(Gtk::Entry& dest);
 
   Settings settings_;
   std::function<void(bool sent, std::string error)> done_;
