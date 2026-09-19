@@ -42,6 +42,7 @@ executable(
   'src/subscribe_dialog.cpp',
   'src/account_dialog.cpp',
   'src/feed.cpp',
+  'src/feed_cache.cpp',
   'src/fetch.cpp',
   'src/settings.cpp',
   'src/opml.cpp',

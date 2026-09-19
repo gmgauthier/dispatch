@@ -46,6 +46,15 @@ treeview.dispatch-headlines:selected:focus {
   color: #000000;
 }
 
+.dispatch-mail-hdr {
+  background-color: #ECE9D8;
+  border-bottom: 1px solid #808080;
+}
+
+.dispatch-mail-hdr label {
+  color: #000000;
+}
+
 .dispatch-body,
 .dispatch-body text,
 .dispatch-article-body,
