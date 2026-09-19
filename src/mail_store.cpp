@@ -13,6 +13,7 @@
 #include <fstream>
 #include <sstream>
 #include <unistd.h>
+#include <utility>
 #include <vector>
 
 namespace dispatch {
@@ -55,7 +56,98 @@ bool name_seen(const std::string& name)
   const auto colon = name.rfind(":2,");
   if (colon == std::string::npos)
     return false;
-  return name.find('S', colon) != std::string::npos;
+  const std::string flags = name.substr(colon + 3);
+  return flags.find('S') != std::string::npos;
+}
+
+std::string deleted_path()
+{
+  return Glib::build_filename(folder_dir("Inbox"), ".deleted");
+}
+
+std::set<uint32_t> read_uid_set(const std::string& path)
+{
+  std::set<uint32_t> uids;
+  if (!Glib::file_test(path, Glib::FILE_TEST_IS_REGULAR))
+    return uids;
+  try {
+    const std::string s = Glib::file_get_contents(path);
+    std::istringstream in(s);
+    std::string line;
+    while (std::getline(in, line)) {
+      const uint32_t uid = static_cast<uint32_t>(std::strtoul(line.c_str(), nullptr, 10));
+      if (uid)
+        uids.insert(uid);
+    }
+  } catch (const Glib::Error&) {
+  }
+  return uids;
+}
+
+void write_uid_set(const std::string& path, const std::set<uint32_t>& uids)
+{
+  std::ostringstream out;
+  for (uint32_t uid : uids)
+    out << uid << '\n';
+  try {
+    Glib::file_set_contents(path, out.str());
+  } catch (const Glib::Error&) {
+  }
+}
+
+void remember_deleted(uint32_t uid)
+{
+  if (uid == 0)
+    return;
+  auto uids = read_uid_set(deleted_path());
+  uids.insert(uid);
+  write_uid_set(deleted_path(), uids);
+}
+
+void forget_deleted(uint32_t uid)
+{
+  if (uid == 0)
+    return;
+  auto uids = read_uid_set(deleted_path());
+  if (!uids.erase(uid))
+    return;
+  write_uid_set(deleted_path(), uids);
+}
+
+void remove_inbox_uid_copies(uint32_t uid, const std::string& keep_path)
+{
+  if (uid == 0)
+    return;
+  for (const char* sub : {"cur", "new"}) {
+    const std::string dir = Glib::build_filename(folder_dir("Inbox"), sub);
+    if (!Glib::file_test(dir, Glib::FILE_TEST_IS_DIR))
+      continue;
+    Glib::Dir gd(dir);
+    std::vector<std::string> names;
+    for (const std::string& name : gd)
+      names.push_back(name);
+    for (const auto& name : names) {
+      if (uid_from_name(name) != uid)
+        continue;
+      const std::string p = Glib::build_filename(dir, name);
+      if (p != keep_path)
+        ::unlink(p.c_str());
+    }
+  }
+}
+
+std::set<uint32_t> scan_uids(const std::string& dir)
+{
+  std::set<uint32_t> uids;
+  if (!Glib::file_test(dir, Glib::FILE_TEST_IS_DIR))
+    return uids;
+  Glib::Dir gd(dir);
+  for (const std::string& name : gd) {
+    const uint32_t uid = uid_from_name(name);
+    if (uid)
+      uids.insert(uid);
+  }
+  return uids;
 }
 
 void scan_dir(const std::string& dir, std::vector<MailMessage>& out)
@@ -123,6 +215,7 @@ void inbox_set_uidvalidity(uint32_t uidvalidity)
 
 void inbox_wipe()
 {
+  ::unlink(deleted_path().c_str());
   for (const char* sub : {"cur", "new", "tmp"}) {
     const std::string dir = Glib::build_filename(folder_dir("Inbox"), sub);
     if (!Glib::file_test(dir, Glib::FILE_TEST_IS_DIR))
@@ -141,7 +234,29 @@ void inbox_wipe()
 
 std::set<uint32_t> inbox_uids()
 {
-  std::set<uint32_t> uids;
+  std::set<uint32_t> uids = scan_uids(Glib::build_filename(folder_dir("Inbox"), "cur"));
+  const auto more = scan_uids(Glib::build_filename(folder_dir("Inbox"), "new"));
+  uids.insert(more.begin(), more.end());
+  return uids;
+}
+
+std::set<uint32_t> inbox_skip_uids()
+{
+  std::set<uint32_t> uids = inbox_uids();
+  const auto deleted = read_uid_set(deleted_path());
+  uids.insert(deleted.begin(), deleted.end());
+  for (const char* folder : {"Trash", "Sent", "Drafts", "Outbox"}) {
+    const auto extra = scan_uids(Glib::build_filename(folder_dir(folder), "cur"));
+    uids.insert(extra.begin(), extra.end());
+    const auto extra_new = scan_uids(Glib::build_filename(folder_dir(folder), "new"));
+    uids.insert(extra_new.begin(), extra_new.end());
+  }
+  return uids;
+}
+
+std::vector<std::pair<uint32_t, bool>> inbox_uid_seen()
+{
+  std::vector<std::pair<uint32_t, bool>> out;
   for (const char* sub : {"cur", "new"}) {
     const std::string dir = Glib::build_filename(folder_dir("Inbox"), sub);
     if (!Glib::file_test(dir, Glib::FILE_TEST_IS_DIR))
@@ -150,16 +265,18 @@ std::set<uint32_t> inbox_uids()
     for (const std::string& name : gd) {
       const uint32_t uid = uid_from_name(name);
       if (uid)
-        uids.insert(uid);
+        out.emplace_back(uid, name_seen(name));
     }
   }
-  return uids;
+  return out;
 }
 
 bool inbox_write(uint32_t uid, const char* rfc822, size_t len, bool seen)
 {
   if (!rfc822 || len == 0 || uid == 0)
     return false;
+  if (inbox_skip_uids().count(uid))
+    return true;
   ensure_maildirs();
   std::ostringstream name;
   name << uid << ".M" << static_cast<long>(::time(nullptr)) << "P" << ::getpid() << ".dispatch";
@@ -220,6 +337,71 @@ bool folder_remove(const std::string& path)
   if (path.empty())
     return false;
   return ::unlink(path.c_str()) == 0;
+}
+
+bool folder_set_seen(std::string& path, bool seen)
+{
+  if (path.empty())
+    return false;
+  const std::string dir = Glib::path_get_dirname(path);
+  std::string name = Glib::path_get_basename(path);
+  const auto colon = name.rfind(":2,");
+  if (colon == std::string::npos)
+    name += seen ? ":2,S" : ":2,";
+  else {
+    std::string flags;
+    for (char c : name.substr(colon + 3)) {
+      if (c != 'S')
+        flags += c;
+    }
+    if (seen)
+      flags += 'S';
+    name = name.substr(0, colon + 3) + flags;
+  }
+  std::string dest_dir = dir;
+  if (Glib::path_get_basename(dir) == "new")
+    dest_dir = Glib::build_filename(Glib::path_get_dirname(dir), "cur");
+  const std::string dest = Glib::build_filename(dest_dir, name);
+  if (dest == path)
+    return true;
+  if (Glib::file_test(dest, Glib::FILE_TEST_IS_REGULAR)) {
+    ::unlink(path.c_str());
+    path = dest;
+    return true;
+  }
+  if (::rename(path.c_str(), dest.c_str()) != 0)
+    return false;
+  path = dest;
+  return true;
+}
+
+bool folder_move(std::string& path, int dest_folder)
+{
+  if (path.empty() || dest_folder < 0 || dest_folder >= kFolderCount)
+    return false;
+  ensure_maildirs();
+  const std::string name_only = Glib::path_get_basename(path);
+  const uint32_t uid = uid_from_name(name_only);
+  const std::string parent =
+      Glib::path_get_basename(Glib::path_get_dirname(Glib::path_get_dirname(path)));
+  if (parent == "Inbox" && dest_folder != kFolderInbox && uid)
+    remember_deleted(uid);
+  if (dest_folder == kFolderInbox && uid) {
+    forget_deleted(uid);
+    remove_inbox_uid_copies(uid, path);
+  }
+  std::string name = name_only;
+  if (name.rfind(":2,") == std::string::npos)
+    name += ":2,";
+  std::string dest = Glib::build_filename(folder_dir(kFolders[dest_folder]), "cur", name);
+  if (dest == path)
+    return true;
+  if (Glib::file_test(dest, Glib::FILE_TEST_IS_REGULAR))
+    ::unlink(dest.c_str());
+  if (::rename(path.c_str(), dest.c_str()) != 0)
+    return false;
+  path = dest;
+  return true;
 }
 
 std::vector<MailMessage> load_mail_folder(int folder_index)

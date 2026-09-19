@@ -6,6 +6,7 @@
 #include "article_window.hpp"
 #include "compose_window.hpp"
 #include "font_dialog.hpp"
+#include "mail_parse.hpp"
 #include "paths.hpp"
 #include "subscribe_dialog.hpp"
 
@@ -14,6 +15,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <iostream>
 
 namespace dispatch {
@@ -94,6 +96,28 @@ Glib::ustring u8(const std::string& raw)
   Glib::ustring u(v ? v : "");
   g_free(v);
   return u;
+}
+
+std::string references_header(const MailMessage& m)
+{
+  std::string out;
+  auto add = [&](const std::string& id) {
+    if (id.empty())
+      return;
+    if (!out.empty())
+      out += ' ';
+    if (id.front() == '<')
+      out += id;
+    else {
+      out += '<';
+      out += id;
+      out += '>';
+    }
+  };
+  for (const auto& id : m.references)
+    add(id);
+  add(m.msgid);
+  return out;
 }
 
 }  // namespace
@@ -213,6 +237,8 @@ void MainWindow::build_menu()
   auto* edit = Gtk::manage(new Gtk::Menu());
   add_item(*edit, "Mark as _Read", sigc::mem_fun(*this, &MainWindow::on_mark_read));
   add_item(*edit, "_Toggle Unread", sigc::mem_fun(*this, &MainWindow::on_toggle_unread));
+  edit->append(*Gtk::manage(new Gtk::SeparatorMenuItem()));
+  add_item(*edit, "_Undelete", sigc::mem_fun(*this, &MainWindow::on_undelete_mail));
   add_menu("_Edit", *edit);
 
   auto* view = Gtk::manage(new Gtk::Menu());
@@ -255,14 +281,17 @@ void MainWindow::build_toolbar()
 
   btn_send_recv_.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_send_recv));
   btn_new_mail_.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_new_mail));
-  btn_reply_.set_sensitive(false);
-  btn_forward_.set_sensitive(false);
-  btn_delete_.set_sensitive(false);
+  btn_reply_.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_reply));
+  btn_forward_.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_forward));
+  btn_delete_.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_delete_mail));
+  btn_undelete_.set_tooltip_text("Move back to Inbox");
+  btn_undelete_.signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_undelete_mail));
   mail_tools_.pack_start(btn_send_recv_, Gtk::PACK_SHRINK);
   mail_tools_.pack_start(btn_new_mail_, Gtk::PACK_SHRINK);
   mail_tools_.pack_start(btn_reply_, Gtk::PACK_SHRINK);
   mail_tools_.pack_start(btn_forward_, Gtk::PACK_SHRINK);
   mail_tools_.pack_start(btn_delete_, Gtk::PACK_SHRINK);
+  mail_tools_.pack_start(btn_undelete_, Gtk::PACK_SHRINK);
 
   toolbar_.pack_start(feed_tools_, Gtk::PACK_SHRINK);
   toolbar_.pack_start(mail_tools_, Gtk::PACK_SHRINK);
@@ -446,45 +475,60 @@ void MainWindow::build_body()
   mail_cols_.add(col_mail_subject_);
   mail_cols_.add(col_mail_date_);
   mail_cols_.add(col_mail_index_);
-  mail_store_ = Gtk::ListStore::create(mail_cols_);
+  mail_store_ = Gtk::TreeStore::create(mail_cols_);
   mail_view_.set_model(mail_store_);
   {
     auto* from_cell = Gtk::manage(new Gtk::CellRendererText());
-    from_cell->property_xpad() = 1;
+    from_cell->property_xpad() = 6;
     from_cell->property_ypad() = 1;
     from_cell->property_ellipsize() = Pango::ELLIPSIZE_END;
     mail_view_.append_column("From", *from_cell);
     if (auto* col = mail_view_.get_column(0)) {
       col->add_attribute(*from_cell, "text", col_mail_from_);
       col->set_sizing(Gtk::TREE_VIEW_COLUMN_FIXED);
+      col->set_resizable(true);
       col->set_expand(false);
-      col->set_fixed_width(140);
+      col->set_min_width(48);
+      col->set_fixed_width(168);
     }
     auto* subj_cell = Gtk::manage(new Gtk::CellRendererText());
-    subj_cell->property_xpad() = 1;
+    subj_cell->property_xpad() = 6;
     subj_cell->property_ypad() = 1;
     subj_cell->property_ellipsize() = Pango::ELLIPSIZE_END;
     mail_view_.append_column("Subject", *subj_cell);
     if (auto* col = mail_view_.get_column(1)) {
       col->add_attribute(*subj_cell, "text", col_mail_subject_);
       col->set_sizing(Gtk::TREE_VIEW_COLUMN_FIXED);
+      col->set_resizable(true);
       col->set_expand(true);
-      col->set_min_width(80);
+      col->set_min_width(48);
     }
     auto* date_cell = Gtk::manage(new Gtk::CellRendererText());
-    date_cell->property_xpad() = 1;
+    date_cell->property_xpad() = 6;
     date_cell->property_ypad() = 1;
-    date_cell->property_xalign() = 1.0;
+    date_cell->property_xalign() = 0.0;
     mail_view_.append_column("Date", *date_cell);
     if (auto* col = mail_view_.get_column(2)) {
       col->add_attribute(*date_cell, "text", col_mail_date_);
       col->set_sizing(Gtk::TREE_VIEW_COLUMN_FIXED);
+      col->set_resizable(true);
       col->set_expand(false);
-      col->set_fixed_width(108);
+      col->set_min_width(120);
+      col->set_fixed_width(148);
+      col->set_clickable(true);
+      col->set_sort_indicator(true);
+      col->set_sort_order(Gtk::SORT_DESCENDING);
+      col->signal_clicked().connect(sigc::mem_fun(*this, &MainWindow::on_mail_date_header));
     }
   }
   mail_view_.get_style_context()->add_class("dispatch-headlines");
   style_nav_column(mail_view_);
+  mail_view_.set_fixed_height_mode(false);
+  mail_view_.set_enable_tree_lines(true);
+  mail_view_.set_show_expanders(true);
+  mail_view_.set_level_indentation(10);
+  if (auto* col = mail_view_.get_column(1))
+    mail_view_.set_expander_column(*col);
   for (guint c = 0; c < mail_view_.get_n_columns(); ++c) {
     if (auto* col = mail_view_.get_column(c)) {
       if (auto* cell = col->get_first_cell())
@@ -499,7 +543,15 @@ void MainWindow::build_body()
                                                  false);
   mail_view_.signal_key_press_event().connect(sigc::mem_fun(*this, &MainWindow::on_mail_key),
                                               false);
-  mail_scroll_.set_policy(Gtk::POLICY_NEVER, Gtk::POLICY_AUTOMATIC);
+  mail_view_.set_hscroll_policy(Gtk::SCROLL_MINIMUM);
+  mail_view_.set_hexpand(true);
+  mail_view_.set_size_request(1, -1);
+  mail_scroll_.set_hexpand(true);
+  mail_scroll_.set_vexpand(true);
+  mail_scroll_.set_size_request(1, -1);
+  mail_scroll_.set_min_content_width(1);
+  mail_scroll_.set_policy(Gtk::POLICY_EXTERNAL, Gtk::POLICY_AUTOMATIC);
+  mail_scroll_.set_propagate_natural_width(false);
   mail_scroll_.add(mail_view_);
   mail_scroll_.get_style_context()->add_class("dispatch-headlines-scroll");
   mail_scroll_.signal_button_press_event().connect(
@@ -1079,6 +1131,20 @@ void MainWindow::on_refresh_all()
 
 void MainWindow::on_mark_read()
 {
+  if (mail_mode_) {
+    if (current_mail_ >= 0)
+      mark_mail(false);
+    else {
+      for (auto& m : mail_items_) {
+        if (!m.unread)
+          continue;
+        if (folder_set_seen(m.path, true))
+          m.unread = false;
+      }
+    }
+    mail_view_.queue_draw();
+    return;
+  }
   if (current_feed_ < 0 || current_feed_ >= static_cast<int>(feeds_.size()))
     return;
   if (current_headline_ >= 0) {
@@ -1092,6 +1158,15 @@ void MainWindow::on_mark_read()
 
 void MainWindow::on_toggle_unread()
 {
+  if (mail_mode_) {
+    if (current_mail_ < 0 || current_mail_ >= static_cast<int>(mail_items_.size())) {
+      set_status("Select a message.");
+      return;
+    }
+    const bool unread = mail_items_[static_cast<size_t>(current_mail_)].unread;
+    mark_mail(!unread);
+    return;
+  }
   if (current_feed_ < 0 || current_feed_ >= static_cast<int>(feeds_.size()) ||
       current_headline_ < 0) {
     set_status("Select a headline.");
@@ -1192,15 +1267,59 @@ void MainWindow::fill_mail_list()
   mail_hover_path_.clear();
   current_mail_ = -1;
   body_view_.load({}, {}, {});
-  for (int i = 0; i < static_cast<int>(mail_items_.size()); ++i) {
-    const auto& m = mail_items_[static_cast<size_t>(i)];
-    auto it = mail_store_->append();
-    (*it)[col_mail_from_] = u8(m.from);
-    (*it)[col_mail_subject_] = u8(m.subject);
-    (*it)[col_mail_date_] = u8(m.date);
-    (*it)[col_mail_index_] = i;
+  const int n = static_cast<int>(mail_items_.size());
+  const std::vector<int> parent = thread_parents(mail_items_);
+  std::vector<std::vector<int>> children(static_cast<size_t>(std::max(0, n)));
+  std::vector<int> roots;
+  for (int i = 0; i < n; ++i) {
+    const int p = parent[static_cast<size_t>(i)];
+    if (p < 0)
+      roots.push_back(i);
+    else
+      children[static_cast<size_t>(p)].push_back(i);
   }
+  auto date_of = [&](int i) { return mail_items_[static_cast<size_t>(i)].date_unix; };
+  auto uid_of = [&](int i) { return mail_items_[static_cast<size_t>(i)].uid; };
+  std::sort(roots.begin(), roots.end(), [&](int a, int b) {
+    if (date_of(a) != date_of(b))
+      return mail_date_newest_first_ ? date_of(a) > date_of(b) : date_of(a) < date_of(b);
+    return mail_date_newest_first_ ? uid_of(a) > uid_of(b) : uid_of(a) < uid_of(b);
+  });
+  for (auto& kids : children) {
+    std::sort(kids.begin(), kids.end(), [&](int a, int b) {
+      if (date_of(a) != date_of(b))
+        return date_of(a) < date_of(b);
+      return uid_of(a) < uid_of(b);
+    });
+  }
+  std::function<void(const Gtk::TreeModel::Row*, int)> add_row =
+      [&](const Gtk::TreeModel::Row* parent_row, int i) {
+        Gtk::TreeModel::iterator it;
+        if (parent_row)
+          it = mail_store_->append(parent_row->children());
+        else
+          it = mail_store_->append();
+        const auto& m = mail_items_[static_cast<size_t>(i)];
+        (*it)[col_mail_from_] = u8(m.from);
+        (*it)[col_mail_subject_] = u8(m.subject);
+        (*it)[col_mail_date_] = u8(m.date);
+        (*it)[col_mail_index_] = i;
+        const Gtk::TreeModel::Row row = *it;
+        for (int c : children[static_cast<size_t>(i)])
+          add_row(&row, c);
+      };
+  for (int r : roots)
+    add_row(nullptr, r);
   mail_view_.queue_draw();
+  update_mail_actions();
+}
+
+void MainWindow::on_mail_date_header()
+{
+  mail_date_newest_first_ = !mail_date_newest_first_;
+  if (auto* col = mail_view_.get_column(2))
+    col->set_sort_order(mail_date_newest_first_ ? Gtk::SORT_DESCENDING : Gtk::SORT_ASCENDING);
+  fill_mail_list();
 }
 
 int MainWindow::mail_unread_count() const
@@ -1219,6 +1338,8 @@ void MainWindow::show_mail_preview()
     return;
   const auto& m = mail_items_[static_cast<size_t>(current_mail_)];
   body_view_.load(m.html, {}, {});
+  mark_mail(false);
+  update_mail_actions();
 }
 
 void MainWindow::open_mail()
@@ -1235,19 +1356,37 @@ void MainWindow::open_mail()
 
 void MainWindow::step_mail(int delta)
 {
-  if (mail_items_.empty())
+  if (mail_items_.empty() || !mail_store_)
     return;
-  int i = current_mail_;
-  if (i < 0)
-    i = delta >= 0 ? 0 : static_cast<int>(mail_items_.size()) - 1;
-  else
-    i += delta;
-  if (i < 0)
-    i = 0;
-  if (i >= static_cast<int>(mail_items_.size()))
-    i = static_cast<int>(mail_items_.size()) - 1;
-  current_mail_ = i;
-  mail_current_path_ = Gtk::TreeModel::Path(std::to_string(i));
+  std::vector<Gtk::TreeModel::Path> order;
+  mail_store_->foreach ([&](const Gtk::TreeModel::Path& p, const Gtk::TreeModel::iterator&) {
+    order.push_back(p);
+    return false;
+  });
+  if (order.empty())
+    return;
+  int pos = 0;
+  if (current_mail_ >= 0) {
+    for (int i = 0; i < static_cast<int>(order.size()); ++i) {
+      auto it = mail_store_->get_iter(order[static_cast<size_t>(i)]);
+      if (it && (*it)[col_mail_index_] == current_mail_) {
+        pos = i;
+        break;
+      }
+    }
+  } else {
+    pos = delta >= 0 ? -1 : static_cast<int>(order.size());
+  }
+  pos += delta;
+  if (pos < 0)
+    pos = 0;
+  if (pos >= static_cast<int>(order.size()))
+    pos = static_cast<int>(order.size()) - 1;
+  auto it = mail_store_->get_iter(order[static_cast<size_t>(pos)]);
+  if (!it)
+    return;
+  current_mail_ = (*it)[col_mail_index_];
+  mail_current_path_ = order[static_cast<size_t>(pos)];
   show_mail_preview();
   if (auto* col = mail_view_.get_column(0))
     mail_view_.scroll_to_cell(mail_current_path_, *col);
@@ -1267,16 +1406,174 @@ void MainWindow::on_send_recv()
 
 void MainWindow::on_new_mail()
 {
+  open_compose({});
+}
+
+void MainWindow::open_compose(ComposeFill fill)
+{
   if (settings_.smtp_host.empty() || settings_.mail_user.empty()) {
     set_status("Set Options → Account… first.");
     return;
   }
-  auto* win = new ComposeWindow(settings_,
-                                [this](bool sent, std::string err) { on_compose_done(sent, err); });
+  auto* win = new ComposeWindow(
+      settings_, [this](bool sent, std::string err) { on_compose_done(sent, err); },
+      std::move(fill));
   if (auto app = get_application())
     app->add_window(*win);
   win->signal_hide().connect([win]() { delete win; });
   win->present();
+}
+
+void MainWindow::update_mail_actions()
+{
+  const bool sel = current_mail_ >= 0 && current_mail_ < static_cast<int>(mail_items_.size());
+  const bool smtp = !settings_.smtp_host.empty() && !settings_.mail_user.empty();
+  btn_reply_.set_sensitive(sel && smtp);
+  btn_forward_.set_sensitive(sel && smtp);
+  btn_delete_.set_sensitive(sel);
+  btn_undelete_.set_sensitive(sel && current_folder_ == kFolderTrash);
+}
+
+void MainWindow::on_reply()
+{
+  if (current_mail_ < 0 || current_mail_ >= static_cast<int>(mail_items_.size())) {
+    set_status("Select a message.");
+    return;
+  }
+  const auto& m = mail_items_[static_cast<size_t>(current_mail_)];
+  ComposeFill fill;
+  fill.title = "Reply";
+  fill.to = m.reply_addr;
+  fill.subject = with_re_prefix(m.subject);
+  fill.body = quote_plain(m.from, m.date, m.text);
+  fill.in_reply_to = m.msgid;
+  fill.references = references_header(m);
+  open_compose(std::move(fill));
+}
+
+void MainWindow::on_forward()
+{
+  if (current_mail_ < 0 || current_mail_ >= static_cast<int>(mail_items_.size())) {
+    set_status("Select a message.");
+    return;
+  }
+  const auto& m = mail_items_[static_cast<size_t>(current_mail_)];
+  ComposeFill fill;
+  fill.title = "Forward";
+  fill.subject = with_fwd_prefix(m.subject);
+  fill.body = quote_plain(m.from, m.date, m.text);
+  fill.in_reply_to = m.msgid;
+  fill.references = references_header(m);
+  open_compose(std::move(fill));
+}
+
+void MainWindow::on_delete_mail()
+{
+  if (current_mail_ < 0 || current_mail_ >= static_cast<int>(mail_items_.size())) {
+    set_status("Select a message.");
+    return;
+  }
+  std::vector<int> idxs;
+  idxs.push_back(current_mail_);
+  if (mail_store_ && mail_current_path_.size() > 0) {
+    auto it = mail_store_->get_iter(mail_current_path_);
+    if (it && !it->children().empty()) {
+      std::function<void(const Gtk::TreeModel::iterator&)> walk =
+          [&](const Gtk::TreeModel::iterator& row) {
+            idxs.push_back((*row)[col_mail_index_]);
+            for (auto c : row->children())
+              walk(c);
+          };
+      idxs.clear();
+      walk(it);
+    }
+  }
+  if (idxs.size() > 1) {
+    const bool trash = current_folder_ == kFolderTrash;
+    Gtk::MessageDialog dlg(*this,
+                           Glib::ustring::compose("Delete this entire thread (%1 messages)?",
+                                                  static_cast<int>(idxs.size())),
+                           false, Gtk::MESSAGE_WARNING, Gtk::BUTTONS_NONE, true);
+    dlg.set_secondary_text(trash ? "The selected message and all replies and forwards in the "
+                                   "thread will be permanently deleted."
+                                 : "The selected message and all replies and forwards in the "
+                                   "thread will be moved to Trash.");
+    dlg.add_button("_Cancel", Gtk::RESPONSE_CANCEL);
+    dlg.add_button(trash ? "_Delete thread" : "_Move thread to Trash", Gtk::RESPONSE_YES);
+    dlg.set_default_response(Gtk::RESPONSE_CANCEL);
+    if (dlg.run() != Gtk::RESPONSE_YES)
+      return;
+  }
+  int moved = 0;
+  int failed = 0;
+  for (int i : idxs) {
+    if (i < 0 || i >= static_cast<int>(mail_items_.size()))
+      continue;
+    std::string path = mail_items_[static_cast<size_t>(i)].path;
+    if (current_folder_ == kFolderTrash) {
+      if (folder_remove(path))
+        ++moved;
+      else
+        ++failed;
+    } else if (folder_move(path, kFolderTrash)) {
+      ++moved;
+    } else {
+      ++failed;
+    }
+  }
+  if (failed && !moved)
+    set_status(idxs.size() > 1 ? "Could not move thread to Trash." : "Could not move to Trash.");
+  else if (current_folder_ == kFolderTrash)
+    set_status(moved > 1 ? Glib::ustring::compose("Deleted %1 messages.", moved) : "Deleted.");
+  else if (moved > 1)
+    set_status(Glib::ustring::compose("Moved %1 messages to Trash.", moved));
+  else
+    set_status("Moved to Trash.");
+  const int keep = current_mail_;
+  select_mail_folder(current_folder_);
+  if (!mail_items_.empty()) {
+    current_mail_ = -1;
+    step_mail(keep >= 0 ? keep + 1 : 1);
+  }
+  update_mail_actions();
+}
+
+void MainWindow::on_undelete_mail()
+{
+  if (current_folder_ != kFolderTrash) {
+    set_status("Undelete is for Trash.");
+    return;
+  }
+  if (current_mail_ < 0 || current_mail_ >= static_cast<int>(mail_items_.size())) {
+    set_status("Select a message.");
+    return;
+  }
+  auto& m = mail_items_[static_cast<size_t>(current_mail_)];
+  if (!folder_move(m.path, kFolderInbox)) {
+    set_status("Could not restore to Inbox.");
+    return;
+  }
+  set_status("Restored to Inbox.");
+  const int keep = current_mail_;
+  select_mail_folder(kFolderTrash);
+  if (!mail_items_.empty()) {
+    current_mail_ = -1;
+    step_mail(keep >= 0 ? keep + 1 : 1);
+  }
+  update_mail_actions();
+}
+
+void MainWindow::mark_mail(bool unread)
+{
+  if (current_mail_ < 0 || current_mail_ >= static_cast<int>(mail_items_.size()))
+    return;
+  auto& m = mail_items_[static_cast<size_t>(current_mail_)];
+  if (m.unread == unread)
+    return;
+  if (!folder_set_seen(m.path, !unread))
+    return;
+  m.unread = unread;
+  mail_view_.queue_draw();
 }
 
 void MainWindow::on_compose_done(bool sent, const std::string& error)
@@ -1498,6 +1795,12 @@ bool MainWindow::on_mail_button(GdkEventButton* event)
     return false;
   if (event->type == GDK_BUTTON_PRESS)
     mail_view_.grab_focus();
+  Gtk::TreeViewColumn* ecol = nullptr;
+  Gtk::TreeModel::Path epath;
+  int ecx = 0, ecy = 0;
+  if (mail_view_.is_blank_at_pos(static_cast<int>(event->x), static_cast<int>(event->y), epath,
+                                 ecol, ecx, ecy))
+    return false;
   Gtk::TreeModel::Path path;
   if (!path_at_bin_event(mail_view_, event->window, event->x, event->y, path))
     return false;
@@ -1523,8 +1826,22 @@ bool MainWindow::on_mail_key(GdkEventKey* event)
     open_mail();
     return true;
   }
+  if (event->keyval == GDK_KEY_Delete || event->keyval == GDK_KEY_KP_Delete) {
+    on_delete_mail();
+    return true;
+  }
   const int n = static_cast<int>(mail_items_.size());
   switch (event->keyval) {
+    case GDK_KEY_Left:
+    case GDK_KEY_KP_Left:
+      if (mail_current_path_.size() > 0)
+        mail_view_.collapse_row(mail_current_path_);
+      return true;
+    case GDK_KEY_Right:
+    case GDK_KEY_KP_Right:
+      if (mail_current_path_.size() > 0)
+        mail_view_.expand_row(mail_current_path_, false);
+      return true;
     case GDK_KEY_Up:
     case GDK_KEY_KP_Up:
       step_mail(-1);
