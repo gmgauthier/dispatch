@@ -5,6 +5,8 @@
 #include "body_view.hpp"
 #include "feed.hpp"
 #include "fetch.hpp"
+#include "mail_imap.hpp"
+#include "mail_store.hpp"
 #include "opml.hpp"
 #include "settings.hpp"
 
@@ -47,6 +49,9 @@ class MainWindow : public Gtk::Window {
     int replace_index = -1;
     ParsedFeed parsed;
     std::string error;
+  };
+  struct MailSyncJob {
+    InboxSyncResult result;
   };
 
   void load_css();
@@ -96,6 +101,19 @@ class MainWindow : public Gtk::Window {
   void apply_mode(bool mail);
   void fill_mail_folders();
   void select_mail_folder(int index);
+  void fill_mail_list();
+  void show_mail_preview();
+  void open_mail();
+  void step_mail(int delta);
+  void on_send_recv();
+  void start_mail_sync();
+  void on_mail_sync_done();
+  int mail_unread_count() const;
+  void on_mail_cell_data(Gtk::CellRenderer* cell, const Gtk::TreeModel::const_iterator& it);
+  bool on_mail_motion(GdkEventMotion* event);
+  bool on_mail_leave(GdkEventCrossing* event);
+  bool on_mail_button(GdkEventButton* event);
+  bool on_mail_key(GdkEventKey* event);
   void on_folder_cell_data(Gtk::CellRenderer* cell, const Gtk::TreeModel::const_iterator& it);
   bool on_folder_motion(GdkEventMotion* event);
   bool on_folder_leave(GdkEventCrossing* event);
@@ -179,6 +197,7 @@ class MainWindow : public Gtk::Window {
   Gtk::TreeModelColumn<Glib::ustring> col_mail_from_;
   Gtk::TreeModelColumn<Glib::ustring> col_mail_subject_;
   Gtk::TreeModelColumn<Glib::ustring> col_mail_date_;
+  Gtk::TreeModelColumn<int> col_mail_index_;
   Gtk::TreeModelColumnRecord mail_cols_;
 
   Settings settings_;
@@ -194,8 +213,12 @@ class MainWindow : public Gtk::Window {
   bool preview_visible_ = true;
   bool mail_mode_ = true;
   int current_folder_ = 0;
+  int current_mail_ = -1;
+  std::vector<MailMessage> mail_items_;
   Gtk::TreeModel::Path folder_current_path_;
   Gtk::TreeModel::Path folder_hover_path_;
+  Gtk::TreeModel::Path mail_current_path_;
+  Gtk::TreeModel::Path mail_hover_path_;
 
   Glib::Dispatcher fetch_done_;
   sigc::connection fetch_conn_;
@@ -203,6 +226,12 @@ class MainWindow : public Gtk::Window {
   FetchJob fetch_job_;
   std::thread fetch_thread_;
   std::atomic<bool> fetching_{false};
+  Glib::Dispatcher mail_done_;
+  sigc::connection mail_conn_;
+  std::mutex mail_mutex_;
+  MailSyncJob mail_job_;
+  std::thread mail_thread_;
+  std::atomic<bool> mail_syncing_{false};
   sigc::connection refresh_timer_;
   bool applying_ui_ = false;
 };

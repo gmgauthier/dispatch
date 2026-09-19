@@ -11,7 +11,9 @@ Build-Depends:
  libgtkmm-3.0-dev,
  libxml2-dev,
  libsoup-3.0-dev,
- libfontconfig1-dev
+ libfontconfig1-dev,
+ libetpan-dev,
+ libgmime-3.0-dev
 Standards-Version: 4.7.0
 Homepage: https://github.com/gmgauthier/dispatch
 Vcs-Git: https://github.com/gmgauthier/dispatch.git
