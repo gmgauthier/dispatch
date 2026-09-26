@@ -1,3 +1,9 @@
+dispatch (1.1.0-1) unstable; urgency=medium
+
+  * Inbox right-click: Move to archive, Move to folder, Delete (Trash).
+
+ -- Greg Gauthier <gmgauthier@protonmail.com>  Sat, 26 Sep 2026 21:00:00 +0100
+
 dispatch (1.0.0-1) unstable; urgency=medium
 
   * First 1.0: Mail M7 rich compose, IMAP LIST folders, Outlook Express

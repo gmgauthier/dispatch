@@ -14,7 +14,7 @@ LCOS itself: [https://github.com/BryanLunduke/LCOS](https://github.com/BryanLund
 
 ## Status
 
-**v1.0.0.** Outlook Express-shaped feed reader and mail client: IMAP/SMTP STARTTLS, Maildir, IMAP folders, rich compose, threads, on-disk feed cache. See [INSTALL.md](INSTALL.md).
+**v1.1.0.** Outlook Express-shaped feed reader and mail client. Inbox right-click: archive, move to folder, Trash. See [INSTALL.md](INSTALL.md).
 
 | Doc | What |
 |---|---|
