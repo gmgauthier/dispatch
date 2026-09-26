@@ -547,6 +547,18 @@ void MainWindow::build_body()
                                                  false);
   mail_view_.signal_button_press_event().connect(sigc::mem_fun(*this, &MainWindow::on_mail_button),
                                                  false);
+  {
+    auto add_mail_item = [this](const Glib::ustring& label, const sigc::slot<void()>& slot) {
+      auto* item = Gtk::manage(new Gtk::MenuItem(label, true));
+      item->signal_activate().connect(slot);
+      mail_inbox_menu_.append(*item);
+    };
+    add_mail_item("Move to _archive", sigc::mem_fun(*this, &MainWindow::on_mail_archive));
+    add_mail_item("Move to _folder…", sigc::mem_fun(*this, &MainWindow::on_mail_move_to_folder));
+    add_mail_item("_Delete (Trash)", sigc::mem_fun(*this, &MainWindow::on_delete_mail));
+    mail_inbox_menu_.attach_to_widget(mail_view_);
+    mail_inbox_menu_.show_all();
+  }
   mail_view_.signal_key_press_event().connect(sigc::mem_fun(*this, &MainWindow::on_mail_key),
                                               false);
   mail_view_.set_hscroll_policy(Gtk::SCROLL_MINIMUM);
@@ -1643,6 +1655,85 @@ void MainWindow::on_delete_mail()
   update_mail_actions();
 }
 
+void MainWindow::move_current_mail(int dest)
+{
+  if (dest < 0 || dest >= mail_folder_count())
+    return;
+  if (current_mail_ < 0 || current_mail_ >= static_cast<int>(mail_items_.size())) {
+    set_status("Select a message.");
+    return;
+  }
+  auto& m = mail_items_[static_cast<size_t>(current_mail_)];
+  if (!folder_move(m.path, dest)) {
+    set_status("Could not move message.");
+    return;
+  }
+  set_status("Moved to " + u8(mail_folder(dest).display) + ".");
+  const int keep = current_mail_;
+  select_mail_folder(current_folder_);
+  if (!mail_items_.empty()) {
+    current_mail_ = -1;
+    step_mail(keep >= 0 ? keep + 1 : 1);
+  }
+  update_mail_actions();
+}
+
+void MainWindow::on_mail_archive()
+{
+  if (current_folder_ != kFolderInbox) {
+    set_status("Archive is for Inbox.");
+    return;
+  }
+  if (current_mail_ < 0 || current_mail_ >= static_cast<int>(mail_items_.size())) {
+    set_status("Select a message.");
+    return;
+  }
+  const int keep = current_mail_;
+  const int dest = ensure_archive_folder();
+  fill_mail_folders();
+  if (keep >= 0 && keep < static_cast<int>(mail_items_.size()))
+    current_mail_ = keep;
+  move_current_mail(dest);
+}
+
+void MainWindow::on_mail_move_to_folder()
+{
+  if (current_folder_ != kFolderInbox) {
+    set_status("Move to folder is for Inbox.");
+    return;
+  }
+  if (current_mail_ < 0 || current_mail_ >= static_cast<int>(mail_items_.size())) {
+    set_status("Select a message.");
+    return;
+  }
+  Gtk::Dialog dlg("Move to folder", *this, true);
+  dlg.add_button("_Cancel", Gtk::RESPONSE_CANCEL);
+  dlg.add_button("_Move", Gtk::RESPONSE_ACCEPT);
+  auto* dest = Gtk::manage(new Gtk::ComboBoxText());
+  const int n = mail_folder_count();
+  int first = -1;
+  for (int i = 0; i < n; ++i) {
+    if (i == kFolderInbox || i == kFolderOutbox)
+      continue;
+    dest->append(Glib::ustring::format(i), u8(mail_folder(i).display));
+    if (first < 0)
+      first = i;
+  }
+  if (first < 0) {
+    set_status("No other folders.");
+    return;
+  }
+  dest->set_active_id(Glib::ustring::format(first));
+  dlg.get_content_area()->set_border_width(10);
+  dlg.get_content_area()->pack_start(*dest, Gtk::PACK_SHRINK);
+  dlg.set_default_response(Gtk::RESPONSE_ACCEPT);
+  dlg.show_all();
+  if (dlg.run() != Gtk::RESPONSE_ACCEPT)
+    return;
+  const int idx = static_cast<int>(g_ascii_strtoll(dest->get_active_id().c_str(), nullptr, 10));
+  move_current_mail(idx);
+}
+
 void MainWindow::on_undelete_mail()
 {
   if (current_folder_ != kFolderTrash) {
@@ -1927,12 +2018,6 @@ bool MainWindow::on_mail_button(GdkEventButton* event)
     return false;
   if (event->type == GDK_BUTTON_PRESS)
     mail_view_.grab_focus();
-  Gtk::TreeViewColumn* ecol = nullptr;
-  Gtk::TreeModel::Path epath;
-  int ecx = 0, ecy = 0;
-  if (mail_view_.is_blank_at_pos(static_cast<int>(event->x), static_cast<int>(event->y), epath,
-                                 ecol, ecx, ecy))
-    return false;
   Gtk::TreeModel::Path path;
   if (!path_at_bin_event(mail_view_, event->window, event->x, event->y, path))
     return false;
@@ -1945,6 +2030,10 @@ bool MainWindow::on_mail_button(GdkEventButton* event)
   mail_view_.queue_draw();
   if (event->type == GDK_2BUTTON_PRESS) {
     open_mail();
+    return true;
+  }
+  if (event->type == GDK_BUTTON_PRESS && event->button == 3 && current_folder_ == kFolderInbox) {
+    mail_inbox_menu_.popup(event->button, event->time);
     return true;
   }
   return event->type == GDK_BUTTON_PRESS;

@@ -117,6 +117,9 @@ class MainWindow : public Gtk::Window {
   void on_forward();
   void on_delete_mail();
   void on_undelete_mail();
+  void on_mail_archive();
+  void on_mail_move_to_folder();
+  void move_current_mail(int dest);
   void mark_mail(bool unread);
   void update_mail_actions();
   void open_compose(ComposeFill fill);
@@ -187,6 +190,7 @@ class MainWindow : public Gtk::Window {
   Gtk::TreeView headline_view_;
   Gtk::ScrolledWindow mail_scroll_;
   Gtk::TreeView mail_view_;
+  Gtk::Menu mail_inbox_menu_;
   Gtk::Box preview_box_{Gtk::ORIENTATION_VERTICAL, 0};
   Gtk::Grid mail_hdr_;
   Gtk::Label mail_hdr_from_;

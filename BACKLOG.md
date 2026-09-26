@@ -1,12 +1,12 @@
 # Dispatch backlog
 
-Current release: **v1.0.0**. Last updated: 2026-09-19.
+Current release: **v1.0.0**. Last updated: 2026-09-26.
 
 Outlook Express shell. Feed (RSS 2 / Atom) and Mail are modes of this binary, not a second guest app. Binary `dispatch`. Suite catalog: `lcos-projects/PRODUCT-BACKLOG.md`. Design: `lcos-projects/DISPATCH.md`. Mail plan: `lcos-projects/DISPATCH-MAIL.md`. Plan: [DEVELOPMENT.md](DEVELOPMENT.md). How to land work: [DEVELOPMENT.md](DEVELOPMENT.md#process) — `feature/` / `fix/` branches, PRs to `master`, lint gate, semver on shipped PRs.
 
 ## High Priority
 
-None. v1.0.0 is the current ship.
+None. Inbox context menu (archive / move to folder / Delete → Trash) is in this branch.
 
 ## Low Priority
 

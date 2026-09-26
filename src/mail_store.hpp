@@ -50,6 +50,7 @@ void ensure_maildirs();
 void load_mail_folders();
 void save_mail_folders();
 void merge_imap_folders(const std::vector<std::string>& imap_names);
+int ensure_archive_folder();
 int mail_folder_count();
 const MailFolderInfo& mail_folder(int index);
 std::string inbox_cur_dir();

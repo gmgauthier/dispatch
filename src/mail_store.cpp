@@ -384,6 +384,32 @@ void merge_imap_folders(const std::vector<std::string>& imap_names)
   save_mail_folders();
 }
 
+bool looks_archive(const MailFolderInfo& f)
+{
+  const std::string d = lower_copy(f.display);
+  const std::string i = lower_copy(last_component(f.imap.empty() ? f.dir : f.imap));
+  return d == "archive" || d == "archives" || i == "archive" || i == "archives";
+}
+
+int ensure_archive_folder()
+{
+  if (g_folders.empty())
+    set_defaults();
+  for (int i = 0; i < static_cast<int>(g_folders.size()); ++i) {
+    if (looks_archive(g_folders[static_cast<size_t>(i)]))
+      return i;
+  }
+  MailFolderInfo extra;
+  extra.display = "Archive";
+  extra.imap = "";
+  extra.dir = "Archive";
+  extra.role = kFolderExtra;
+  g_folders.push_back(std::move(extra));
+  save_mail_folders();
+  ensure_maildirs();
+  return static_cast<int>(g_folders.size()) - 1;
+}
+
 int mail_folder_count()
 {
   if (g_folders.empty())
