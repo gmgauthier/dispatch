@@ -1,19 +1,18 @@
 # Dispatch backlog
 
-Current release: **v1.1.0**. Last updated: 2026-09-26.
+Current release: **v1.1.0**. Last updated: 2026-09-27.
 
 Outlook Express shell. Feed (RSS 2 / Atom) and Mail are modes of this binary, not a second guest app. Binary `dispatch`. Suite catalog: `lcos-projects/PRODUCT-BACKLOG.md`. Design: `lcos-projects/DISPATCH.md`. Mail plan: `lcos-projects/DISPATCH-MAIL.md`. Plan: [DEVELOPMENT.md](DEVELOPMENT.md). How to land work: [DEVELOPMENT.md](DEVELOPMENT.md#process) — `feature/` / `fix/` branches, PRs to `master`, lint gate, semver on shipped PRs.
 
 ## High Priority
 
-None.
+- **Podcasts-as-a-product.** In-item images / mp3 / mp4 Play already shipped. This is a dedicated podcast UI (queue, enclosure list, keep-playing), not another web player. Do not mix this with Mail-mode folders.
 
 ## Low Priority
 
 - **Feed categories** (depth 1). Left pane is a tree: category names as branches, feeds as leaves. No nested categories. Click a feed → that feed’s titles (today). Click the **category** → aggregated titles from every feed in that group, in the title pane (same sort as a single feed). Examples: Tech, Politics, Entertainment. Persist in the ini / OPML if OPML already has `<outline>` groups. Uncategorized feeds stay at the root. Do not mix this with Mail-mode folders.
 - Search all feeds
 - Full-text search
-- Podcasts-as-a-product (in-item images / mp3 / mp4 Play already shipped; a dedicated podcast UI is not)
 
 ## Out of Scope
 
