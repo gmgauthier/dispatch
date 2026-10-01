@@ -81,3 +81,15 @@ install_data(
   rename: 'dispatch.svg',
   install_dir: get_option('datadir') / 'icons' / 'hicolor' / 'scalable' / 'apps',
 )
+
+dispatch_tests = executable(
+  'dispatch-tests',
+  'tests/test_mail_feed.cpp',
+  'src/mail_parse.cpp',
+  'src/compose_format.cpp',
+  'src/feed.cpp',
+  'src/opml.cpp',
+  include_directories: inc,
+  dependencies: [gtkmm, libxml, gmime],
+)
+test('mail-feed', dispatch_tests)
