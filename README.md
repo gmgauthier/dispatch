@@ -14,7 +14,7 @@ LCOS itself: [https://github.com/BryanLunduke/LCOS](https://github.com/BryanLund
 
 ## Status
 
-**v1.1.0.** Outlook Express-shaped feed reader and mail client. Inbox right-click: archive, move to folder, Trash. See [INSTALL.md](INSTALL.md).
+**v1.1.1.** Outlook Express-shaped feed reader and mail client. Inbox right-click: archive, move to folder, Trash. Headless test suite and BUG-BACKLOG.md. See [INSTALL.md](INSTALL.md).
 
 | Doc | What |
 |---|---|

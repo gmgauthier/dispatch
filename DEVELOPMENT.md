@@ -10,9 +10,9 @@ Repos: https://gitea.scriptorium/gmgauthier/dispatch (origin), https://github.co
 
 Catalog note: `lcos-projects/DISPATCH.md`.
 
-## Status (2026-09-19)
+## Status (2026-10-01)
 
-**v1.1.0.** Feed M0–M6 plus Mail M0–M7, IMAP folders, OE headers, server flags, feed item cache. Inbox context menu. Tag `v1.1.0`.
+**v1.1.1.** Feed M0–M6 plus Mail M0–M7, IMAP folders, OE headers, server flags, feed item cache. Inbox context menu. Headless test suite and BUG-BACKLOG.md. Tag `v1.1.1`.
 
 ## 1. Locked decisions
 

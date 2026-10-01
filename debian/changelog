@@ -1,3 +1,9 @@
+dispatch (1.1.1-1) unstable; urgency=medium
+
+  * Add a headless meson test suite and record known defects in BUG-BACKLOG.md.
+
+ -- Greg Gauthier <gmgauthier@protonmail.com>  Thu, 01 Oct 2026 19:04:05 +0100
+
 dispatch (1.1.0-1) unstable; urgency=medium
 
   * Inbox right-click: Move to archive, Move to folder, Delete (Trash).
