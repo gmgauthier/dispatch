@@ -1,3 +1,9 @@
+dispatch (1.1.10-1) unstable; urgency=medium
+
+  * Drop a clicked link that is not http or https.
+
+ -- Greg Gauthier <gmgauthier@protonmail.com>  Fri, 02 Oct 2026 08:33:29 +0100
+
 dispatch (1.1.9-1) unstable; urgency=medium
 
   * Split a bullet at the caret when Return is pressed.
