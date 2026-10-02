@@ -300,19 +300,42 @@ std::vector<std::string> split_addresses(const std::string& raw)
 {
   std::vector<std::string> out;
   std::string cur;
-  for (char c : raw) {
-    if (c == ',' || c == ';') {
-      const std::string addr = extract_addr(cur);
-      if (!addr.empty())
-        out.push_back(addr);
-      cur.clear();
-    } else {
-      cur += c;
+  bool in_quote = false;
+  bool in_angle = false;
+  auto blank = [](const std::string& s) {
+    for (unsigned char ch : s) {
+      if (!std::isspace(ch))
+        return false;
     }
+    return true;
+  };
+  auto mailbox = [](const std::string& s) {
+    return s.find('@') != std::string::npos || s.find('>') != std::string::npos;
+  };
+  auto emit = [&]() {
+    const std::string addr = extract_addr(cur);
+    if (!addr.empty())
+      out.push_back(addr);
+    cur.clear();
+  };
+  for (size_t i = 0; i < raw.size(); ++i) {
+    const char c = raw[i];
+    if (c == '"' && (i == 0 || raw[i - 1] != '\\')) {
+      in_quote = !in_quote;
+      cur.push_back(c);
+      continue;
+    }
+    if (!in_quote && c == '<')
+      in_angle = true;
+    else if (!in_quote && c == '>')
+      in_angle = false;
+    if (!in_quote && !in_angle && (c == ',' || c == ';') && (blank(cur) || mailbox(cur))) {
+      emit();
+      continue;
+    }
+    cur.push_back(c);
   }
-  const std::string addr = extract_addr(cur);
-  if (!addr.empty())
-    out.push_back(addr);
+  emit();
   return out;
 }
 
