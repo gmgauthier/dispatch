@@ -360,24 +360,42 @@ bool fallback_mailbox_expunge()
   return false;
 }
 
-void merge_imap_folders(const std::vector<std::string>& imap_names)
+std::vector<MailFolderInfo> mail_folder_snapshot()
 {
-  if (g_folders.size() < static_cast<size_t>(kFolderCount))
-    set_defaults();
+  return g_folders;
+}
+
+void ensure_listed_maildirs(const std::vector<MailFolderInfo>& folders)
+{
+  g_mkdir_with_parents(mail_root().c_str(), 0700);
+  for (const auto& f : folders)
+    ensure_maildir(folder_dir(f.dir));
+}
+
+std::vector<MailFolderInfo> plan_imap_folders(std::vector<MailFolderInfo> folders,
+                                              const std::vector<std::string>& imap_names)
+{
+  if (folders.size() < static_cast<size_t>(kFolderCount)) {
+    folders = {
+        {"Inbox", "INBOX", "Inbox", kFolderInbox}, {"Sent", "", "Sent", kFolderSent},
+        {"Drafts", "", "Drafts", kFolderDrafts},   {"Outbox", "", "Outbox", kFolderOutbox},
+        {"Trash", "", "Trash", kFolderTrash},
+    };
+  }
   std::set<std::string> used_dir;
-  for (const auto& f : g_folders)
+  for (const auto& f : folders)
     used_dir.insert(f.dir);
   for (const auto& imap : imap_names) {
     if (imap.empty() || skip_imap_name(imap))
       continue;
     const int role = role_for_imap(imap);
     if (role >= 0 && role < kFolderCount) {
-      if (g_folders[static_cast<size_t>(role)].imap.empty() || role == kFolderInbox)
-        g_folders[static_cast<size_t>(role)].imap = imap;
+      if (folders[static_cast<size_t>(role)].imap.empty() || role == kFolderInbox)
+        folders[static_cast<size_t>(role)].imap = imap;
       continue;
     }
     bool have = false;
-    for (const auto& f : g_folders) {
+    for (const auto& f : folders) {
       if (f.imap == imap)
         have = true;
     }
@@ -393,13 +411,19 @@ void merge_imap_folders(const std::vector<std::string>& imap_names)
     while (used_dir.count(extra.dir))
       extra.dir = base + "_" + std::to_string(n++);
     used_dir.insert(extra.dir);
-    g_folders.push_back(std::move(extra));
+    folders.push_back(std::move(extra));
   }
-  if (g_folders.size() > static_cast<size_t>(kFolderCount)) {
+  if (folders.size() > static_cast<size_t>(kFolderCount)) {
     std::sort(
-        g_folders.begin() + kFolderCount, g_folders.end(),
+        folders.begin() + kFolderCount, folders.end(),
         [](const MailFolderInfo& a, const MailFolderInfo& b) { return a.display < b.display; });
   }
+  return folders;
+}
+
+void merge_imap_folders(const std::vector<std::string>& imap_names)
+{
+  g_folders = plan_imap_folders(g_folders, imap_names);
   save_mail_folders();
 }
 
