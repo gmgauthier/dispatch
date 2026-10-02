@@ -6,14 +6,6 @@ Reviewed 2026-10-01 against the 1.1.0 sources.
 
 ## Open
 
-### Unsubscribe during Refresh All writes the fetch into the wrong subscription
-
-- Severity: data-loss
-- Confidence: high
-- Where: `src/main_window.cpp:1083`, `src/main_window.cpp:1013`
-- Trigger: Two or more feeds. Refresh All. Unsubscribe a feed that sorts above one whose fetch has not finished.
-- Outcome: `on_unsubscribe` erases the vector and does not rewrite `fetch_queue_` or `fetch_job_.replace_index`. `on_fetch_done` stores the parsed feed at the old index and `persist()` saves it. The subscription now living at that index is replaced, and its URL is dropped from the ini. If the index is past the new end, the feed is appended and the same URL is stored twice.
-
 ### Return in a bullet inserts the new bullet at the end of the line
 
 - Severity: incorrect
@@ -55,6 +47,15 @@ Reviewed 2026-10-01 against the 1.1.0 sources.
 - Outcome: After the year token, the skip-spaces loop advances past the following space, and `substr` includes it. The visible date is `25 Sep 2026 ` with a trailing space. An ISO `YYYY-MM-DD` date returns ten characters and is fine.
 
 ## Closed
+
+### Unsubscribe during Refresh All writes the fetch into the wrong subscription
+
+- Severity: data-loss
+- Confidence: high
+- Where: `src/main_window.cpp` `on_unsubscribe`, `src/feed.cpp` `retarget_fetch_index`
+- Trigger: Two or more feeds. Refresh All. Unsubscribe a feed that sorts above one whose fetch has not finished.
+- Outcome: `on_unsubscribe` erases the vector and does not rewrite `fetch_queue_` or `fetch_job_.replace_index`. `on_fetch_done` stores the parsed feed at the old index and `persist()` saves it. The subscription now living at that index is replaced, and its URL is dropped from the ini. If the index is past the new end, the feed is appended and the same URL is stored twice.
+- Fixed in v1.1.8: Unsubscribing drops a fetch aimed at that row and shifts later rows down. A finished fetch for the removed subscription is not stored.
 
 ### Reply and Forward of an HTML-only message quote the entities
 

@@ -249,6 +249,16 @@ std::string ascii_lower(std::string s)
 
 }  // namespace
 
+void retarget_fetch_index(int& replace_index, int gone)
+{
+  if (gone < 0)
+    return;
+  if (replace_index == gone)
+    replace_index = kFetchDiscard;
+  else if (replace_index > gone)
+    --replace_index;
+}
+
 std::string html_to_text(const std::string& html)
 {
   std::string out;

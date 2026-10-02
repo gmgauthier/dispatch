@@ -74,6 +74,26 @@ int main()
     CHECK(rcpt[0] == "you@dispatch.test");
   }
 
+  {
+    int inflight = 2;
+    int below = 0;
+    int same = 2;
+    int above = 4;
+    int append = -1;
+    dispatch::retarget_fetch_index(inflight, 2);
+    dispatch::retarget_fetch_index(below, 2);
+    dispatch::retarget_fetch_index(same, 2);
+    dispatch::retarget_fetch_index(above, 2);
+    dispatch::retarget_fetch_index(append, 2);
+    CHECK(inflight == dispatch::kFetchDiscard);
+    CHECK(below == 0);
+    CHECK(same == dispatch::kFetchDiscard);
+    CHECK(above == 3);
+    CHECK(append == -1);
+    int untouched = 3;
+    dispatch::retarget_fetch_index(untouched, -1);
+    CHECK(untouched == 3);
+  }
   CHECK(dispatch::html_to_text("<p>Hi <b>there</b></p>") == "Hi there");
   CHECK(dispatch::html_to_text("A &amp; B") == "A & B");
   {
