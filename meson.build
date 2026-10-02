@@ -100,8 +100,9 @@ dispatch_trash_tests = executable(
   'src/mail_store.cpp',
   'src/mail_parse.cpp',
   'src/compose_format.cpp',
+  'src/feed.cpp',
   include_directories: inc,
-  dependencies: [gtkmm, gmime],
+  dependencies: [gtkmm, gmime, libxml],
 )
 test('trash', dispatch_trash_tests)
 
@@ -111,7 +112,8 @@ dispatch_seen_tests = executable(
   'src/mail_store.cpp',
   'src/mail_parse.cpp',
   'src/compose_format.cpp',
+  'src/feed.cpp',
   include_directories: inc,
-  dependencies: [gtkmm, gmime],
+  dependencies: [gtkmm, gmime, libxml],
 )
 test('seen', dispatch_seen_tests)
