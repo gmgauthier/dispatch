@@ -94,18 +94,15 @@ bool store_flags(mailimap* imap, const std::vector<uint32_t>& uids, bool add_see
 
 void push_local_flags(mailimap* imap, const std::string& dir, const std::set<uint32_t>& on_server)
 {
-  std::vector<uint32_t> seen;
-  std::vector<uint32_t> unseen;
-  for (const auto& item : folder_uid_seen(dir)) {
-    if (!on_server.count(item.first))
-      continue;
-    if (item.second)
-      seen.push_back(item.first);
-    else
-      unseen.push_back(item.first);
-  }
-  store_flags(imap, seen, true);
-  store_flags(imap, unseen, false);
+  if (!imap)
+    return;
+  const SeenStore push = seen_flags_to_store(dir, on_server);
+  std::set<uint32_t> done;
+  if (store_flags(imap, push.add_seen, true))
+    done.insert(push.add_seen.begin(), push.add_seen.end());
+  if (store_flags(imap, push.remove_seen, false))
+    done.insert(push.remove_seen.begin(), push.remove_seen.end());
+  folder_clear_stored_seen(dir, done);
 }
 
 std::string trash_imap_name()
@@ -231,8 +228,10 @@ int sync_one(mailimap* imap, const std::string& imap_name, const std::string& di
       size_t len = 0;
       bool seen = false;
       take_att(att, uid, body, len, seen);
-      if (uid)
+      if (uid) {
         on_server.insert(uid);
+        folder_take_server_seen(dir, uid, seen);
+      }
     }
     mailimap_fetch_list_free(flag_result);
   }

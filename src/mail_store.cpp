@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
+#include <map>
 #include <sstream>
 #include <unistd.h>
 #include <utility>
@@ -481,6 +482,7 @@ void folder_set_uidvalidity(const std::string& dir, uint32_t uidvalidity)
 void folder_wipe(const std::string& dir)
 {
   ::unlink(deleted_path(dir).c_str());
+  ::unlink(Glib::build_filename(folder_dir(dir), ".seen-local").c_str());
   for (const char* sub : {"cur", "new", "tmp"}) {
     const std::string d = Glib::build_filename(folder_dir(dir), sub);
     if (!Glib::file_test(d, Glib::FILE_TEST_IS_DIR))
@@ -644,7 +646,9 @@ bool folder_remove(const std::string& path)
   return ::unlink(path.c_str()) == 0;
 }
 
-bool folder_set_seen(std::string& path, bool seen)
+namespace {
+
+bool set_seen_file(std::string& path, bool seen)
 {
   if (path.empty())
     return false;
@@ -678,6 +682,145 @@ bool folder_set_seen(std::string& path, bool seen)
     return false;
   path = dest;
   return true;
+}
+
+std::string seen_local_path(const std::string& dir)
+{
+  return Glib::build_filename(folder_dir(dir), ".seen-local");
+}
+
+std::map<uint32_t, bool> read_seen_local(const std::string& dir)
+{
+  std::map<uint32_t, bool> out;
+  const std::string path = seen_local_path(dir);
+  if (!Glib::file_test(path, Glib::FILE_TEST_IS_REGULAR))
+    return out;
+  try {
+    const std::string s = Glib::file_get_contents(path);
+    std::istringstream in(s);
+    std::string line;
+    while (std::getline(in, line)) {
+      if (line.empty())
+        continue;
+      char* end = nullptr;
+      const unsigned long v = std::strtoul(line.c_str(), &end, 10);
+      if (!end || end == line.c_str() || v == 0 || v > 0xffffffffUL)
+        continue;
+      while (*end == ' ' || *end == '\t')
+        ++end;
+      if (*end != '0' && *end != '1')
+        continue;
+      out[static_cast<uint32_t>(v)] = *end == '1';
+    }
+  } catch (const Glib::Error&) {
+  }
+  return out;
+}
+
+void write_seen_local(const std::string& dir, const std::map<uint32_t, bool>& pending)
+{
+  std::ostringstream out;
+  for (const auto& item : pending)
+    out << item.first << (item.second ? " 1\n" : " 0\n");
+  try {
+    Glib::file_set_contents(seen_local_path(dir), out.str());
+  } catch (const Glib::Error&) {
+  }
+}
+
+void note_local_seen(const std::string& path, bool seen)
+{
+  const uint32_t uid = uid_from_name(Glib::path_get_basename(path));
+  if (uid == 0)
+    return;
+  const std::string folder =
+      Glib::path_get_basename(Glib::path_get_dirname(Glib::path_get_dirname(path)));
+  if (folder.empty() || folder == "." || folder == "..")
+    return;
+  auto pending = read_seen_local(folder);
+  pending[uid] = seen;
+  write_seen_local(folder, pending);
+}
+
+std::vector<std::string> paths_for_uid(const std::string& dir, uint32_t uid)
+{
+  std::vector<std::string> out;
+  for (const char* sub : {"cur", "new"}) {
+    const std::string d = Glib::build_filename(folder_dir(dir), sub);
+    if (!Glib::file_test(d, Glib::FILE_TEST_IS_DIR))
+      continue;
+    Glib::Dir gd(d);
+    std::vector<std::string> names;
+    for (const std::string& name : gd)
+      names.push_back(name);
+    for (const auto& name : names) {
+      if (uid_from_name(name) == uid)
+        out.push_back(Glib::build_filename(d, name));
+    }
+  }
+  return out;
+}
+
+}  // namespace
+
+bool folder_set_seen(std::string& path, bool seen)
+{
+  if (path.empty())
+    return false;
+  const bool before = name_seen(Glib::path_get_basename(path));
+  if (!set_seen_file(path, seen))
+    return false;
+  if (before != seen)
+    note_local_seen(path, seen);
+  return true;
+}
+
+SeenStore seen_flags_to_store(const std::string& dir, const std::set<uint32_t>& on_server)
+{
+  SeenStore out;
+  if (dir.empty())
+    return out;
+  for (const auto& item : read_seen_local(dir)) {
+    if (!on_server.count(item.first))
+      continue;
+    if (item.second)
+      out.add_seen.push_back(item.first);
+    else
+      out.remove_seen.push_back(item.first);
+  }
+  return out;
+}
+
+bool folder_take_server_seen(const std::string& dir, uint32_t uid, bool seen)
+{
+  if (uid == 0 || dir.empty())
+    return false;
+  if (read_seen_local(dir).count(uid))
+    return false;
+  const std::vector<std::string> paths = paths_for_uid(dir, uid);
+  if (paths.empty())
+    return false;
+  for (std::string path : paths) {
+    if (name_seen(Glib::path_get_basename(path)) == seen)
+      continue;
+    if (!set_seen_file(path, seen))
+      return false;
+  }
+  return true;
+}
+
+void folder_clear_stored_seen(const std::string& dir, const std::set<uint32_t>& done)
+{
+  if (dir.empty() || done.empty())
+    return;
+  auto pending = read_seen_local(dir);
+  bool changed = false;
+  for (uint32_t uid : done) {
+    if (pending.erase(uid))
+      changed = true;
+  }
+  if (changed)
+    write_seen_local(dir, pending);
 }
 
 bool folder_move(std::string& path, int dest_folder)

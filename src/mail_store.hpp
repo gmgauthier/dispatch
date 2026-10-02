@@ -58,6 +58,20 @@ bool expunge_after_trash_copy(const std::string& trash_imap, bool moved, bool co
 /* A failed UID EXPUNGE must not become EXPUNGE. That command removes every
    \\Deleted message in the mailbox, not only the UID set just stored. */
 bool fallback_mailbox_expunge();
+
+/* Local Seen changes still waiting for the server. A message already on disk
+   keeps the server flag unless its UID is in this set. */
+struct SeenStore {
+  std::vector<uint32_t> add_seen;
+  std::vector<uint32_t> remove_seen;
+};
+
+SeenStore seen_flags_to_store(const std::string& dir, const std::set<uint32_t>& on_server);
+
+/* Copy the server Seen flag onto a message already in the folder. A UID still
+   waiting in seen_flags_to_store stays as the user marked it. */
+bool folder_take_server_seen(const std::string& dir, uint32_t uid, bool seen);
+void folder_clear_stored_seen(const std::string& dir, const std::set<uint32_t>& done);
 int ensure_archive_folder();
 int mail_folder_count();
 const MailFolderInfo& mail_folder(int index);

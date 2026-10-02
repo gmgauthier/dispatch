@@ -104,3 +104,14 @@ dispatch_trash_tests = executable(
   dependencies: [gtkmm, gmime],
 )
 test('trash', dispatch_trash_tests)
+
+dispatch_seen_tests = executable(
+  'dispatch-seen-tests',
+  'tests/test_seen.cpp',
+  'src/mail_store.cpp',
+  'src/mail_parse.cpp',
+  'src/compose_format.cpp',
+  include_directories: inc,
+  dependencies: [gtkmm, gmime],
+)
+test('seen', dispatch_seen_tests)
