@@ -131,3 +131,13 @@ if xvfb.found()
 else
   test('compose', dispatch_compose_tests, timeout: 60)
 endif
+
+dispatch_link_tests = executable(
+  'dispatch-link-tests',
+  'tests/test_links.cpp',
+  'src/body_view.cpp',
+  'src/fetch.cpp',
+  include_directories: inc,
+  dependencies: [gtkmm, libxml, libsoup],
+)
+test('links', dispatch_link_tests)

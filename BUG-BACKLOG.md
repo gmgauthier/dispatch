@@ -2,17 +2,9 @@
 
 Reviewed 2026-10-01 against the 1.1.0 sources.
 
-`meson test` runs `tests/test_mail_feed.cpp` (`mail-feed`), `tests/test_trash.cpp` (`trash`), `tests/test_seen.cpp` (`seen`), and `tests/test_compose.cpp` (`compose`). `compose` checks that Return in the middle of a bullet splits that item, that Return at the end of a bullet starts the next one, and that an empty bullet leaves the list. `trash` checks that `INBOX.Trash`, `INBOX.Sent`, and `[Gmail]/Drafts` fill those slots, that a second trash-like name does not become an extra folder, and that a server delete expunges only after a copy into a known trash mailbox. A failed UID EXPUNGE does not fall back to a mailbox-wide EXPUNGE. `seen` checks that a server Seen flag replaces the filename flag on mail already in the folder, and that Send/Recv stores Seen only for a message marked in Dispatch. `mail-feed` checks simple address lists, `Re:` / `Fwd:` prefixes, an RFC 822 round trip, HTML-to-text, an ISO date, an RSS item, and an OPML round trip. The address test keeps `Doe, Jane <jane@example.com>` as one recipient. The RFC 822 date check is a prefix, so it does not require the trailing space below. Launching Ephemeris goes through `Glib::shell_quote`. GMime encodes a CRLF in a subject, and libetpan dot-stuffs the SMTP body. Those are not defects.
+`meson test` runs `tests/test_mail_feed.cpp` (`mail-feed`), `tests/test_trash.cpp` (`trash`), `tests/test_seen.cpp` (`seen`), `tests/test_compose.cpp` (`compose`), and `tests/test_links.cpp` (`links`). `compose` checks that Return in the middle of a bullet splits that item, that Return at the end of a bullet starts the next one, and that an empty bullet leaves the list. `links` checks that a `file:` URL, a bare local path, and any other non-http scheme are dropped, and that an http or https link still resolves. `trash` checks that `INBOX.Trash`, `INBOX.Sent`, and `[Gmail]/Drafts` fill those slots, that a second trash-like name does not become an extra folder, and that a server delete expunges only after a copy into a known trash mailbox. A failed UID EXPUNGE does not fall back to a mailbox-wide EXPUNGE. `seen` checks that a server Seen flag replaces the filename flag on mail already in the folder, and that Send/Recv stores Seen only for a message marked in Dispatch. `mail-feed` checks simple address lists, `Re:` / `Fwd:` prefixes, an RFC 822 round trip, HTML-to-text, an ISO date, an RSS item, and an OPML round trip. The address test keeps `Doe, Jane <jane@example.com>` as one recipient. The RFC 822 date check is a prefix, so it does not require the trailing space below. Launching Ephemeris goes through `Glib::shell_quote`. GMime encodes a CRLF in a subject, and libetpan dot-stuffs the SMTP body. Those are not defects.
 
 ## Open
-
-### A clicked mail link can open a local file
-
-- Severity: security
-- Confidence: high
-- Where: `src/body_view.cpp:677`, `src/body_view.cpp:635`
-- Trigger: Preview an HTML message that contains `<a href="file:///home/USER/.config/dispatch/dispatch.ini">` (or `file:///` plus any other local path) and click the link. Mail preview loads HTML with an empty base.
-- Outcome: `resolve` returns an `http` or `https` URL unchanged, and returns any other URL unchanged when the base is empty. `open_uri` passes that string to `gtk_show_uri_on_window`. GTK opens the local file. The account password is in `dispatch.ini`. Image loads go through `http_get`, which refuses non-http(s). This is the click path.
 
 ### Send/Recv can select a different extra folder at the same index
 
@@ -39,6 +31,15 @@ Reviewed 2026-10-01 against the 1.1.0 sources.
 - Outcome: After the year token, the skip-spaces loop advances past the following space, and `substr` includes it. The visible date is `25 Sep 2026 ` with a trailing space. An ISO `YYYY-MM-DD` date returns ten characters and is fine.
 
 ## Closed
+
+### A clicked mail link can open a local file
+
+- Severity: security
+- Confidence: high
+- Where: `src/body_view.cpp` `resolve_link`, `open_uri`
+- Trigger: Preview an HTML message that contains `<a href="file:///home/USER/.config/dispatch/dispatch.ini">` (or `file:///` plus any other local path) and click the link. Mail preview loads HTML with an empty base.
+- Outcome: `resolve` returns an `http` or `https` URL unchanged, and returns any other URL unchanged when the base is empty. `open_uri` passes that string to `gtk_show_uri_on_window`. GTK opens the local file. The account password is in `dispatch.ini`. Image loads go through `http_get`, which refuses non-http(s). This is the click path.
+- Fixed in v1.1.10: A clicked link is opened only when it resolves to `http` or `https`. A `file:` URL, a bare path, and any other scheme are dropped, including when a feed base is set.
 
 ### Return in a bullet inserts the new bullet at the end of the line
 
