@@ -21,9 +21,11 @@ struct MailSyncResult {
   int total = 0;
   int folders = 0;
   std::string error;
+  std::vector<std::string> mailboxes;
 };
 
-/* Blocking. Call from a worker, not the UI thread. */
+/* Blocking. Call from a worker, not the UI thread. Does not publish folder
+   rows. The UI thread merges `mailboxes` after the worker has finished. */
 MailSyncResult sync_mailboxes(const ImapAccount& account);
 
 }  // namespace dispatch

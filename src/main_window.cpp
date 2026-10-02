@@ -1843,6 +1843,8 @@ void MainWindow::on_mail_sync_done()
     mail_thread_.join();
   mail_syncing_ = false;
   btn_send_recv_.set_sensitive(true);
+  if (!job.inbox.mailboxes.empty())
+    merge_imap_folders(job.inbox.mailboxes);
   int keep = find_mail_folder(sync_keep_imap_, sync_keep_dir_);
   if (keep < 0)
     keep = current_folder_;

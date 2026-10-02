@@ -51,6 +51,13 @@ void load_mail_folders();
 void save_mail_folders();
 void merge_imap_folders(const std::vector<std::string>& imap_names);
 
+/* A copy of the folder list. Planning a LIST result from this copy does not
+   publish that result; merge_imap_folders does, on the thread that owns the UI. */
+std::vector<MailFolderInfo> mail_folder_snapshot();
+std::vector<MailFolderInfo> plan_imap_folders(std::vector<MailFolderInfo> folders,
+                                              const std::vector<std::string>& imap_names);
+void ensure_listed_maildirs(const std::vector<MailFolderInfo>& folders);
+
 /* Index of the folder with this IMAP name, or this local dir when the IMAP
    name is empty. -1 when neither is present. Built-in slots stay put; extras
    are sorted by display name, so a stored index is not an identity. */

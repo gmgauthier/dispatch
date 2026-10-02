@@ -354,13 +354,17 @@ MailSyncResult sync_mailboxes(const ImapAccount& account)
     }
     mailimap_list_result_free(listed);
   }
-  if (!names.empty())
-    merge_imap_folders(names);
-  ensure_maildirs();
+  std::vector<MailFolderInfo> planned;
+  if (!names.empty()) {
+    planned = plan_imap_folders(mail_folder_snapshot(), names);
+    ensure_listed_maildirs(planned);
+    out.mailboxes = names;
+  } else {
+    ensure_maildirs();
+    planned = mail_folder_snapshot();
+  }
 
-  const int n = mail_folder_count();
-  for (int i = 0; i < n; ++i) {
-    const auto& f = mail_folder(i);
+  for (const auto& f : planned) {
     if (f.imap.empty())
       continue;
     r = sync_one(imap, f.imap, f.dir, f.role, out);
