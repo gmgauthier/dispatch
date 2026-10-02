@@ -1,3 +1,9 @@
+dispatch (1.1.8-1) unstable; urgency=medium
+
+  * Drop a fetch when its subscription is unsubscribed.
+
+ -- Greg Gauthier <gmgauthier@protonmail.com>  Fri, 02 Oct 2026 08:16:54 +0100
+
 dispatch (1.1.7-1) unstable; urgency=medium
 
   * Decode HTML entities when quoting an HTML-only message.
