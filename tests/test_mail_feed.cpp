@@ -76,6 +76,13 @@ int main()
 
   CHECK(dispatch::html_to_text("<p>Hi <b>there</b></p>") == "Hi there");
   CHECK(dispatch::html_to_text("A &amp; B") == "A & B");
+  {
+    const std::string grin = "\xF0\x9F\x98\x80";
+    CHECK(dispatch::html_to_text("Hello &#128512;") == "Hello " + grin);
+    CHECK(dispatch::html_to_text("Hello &#x1F600;") == "Hello " + grin);
+    CHECK(dispatch::html_to_text("&#8364;") == "\xE2\x82\xAC");
+    CHECK(dispatch::html_to_text("&#xD800;") == "&#xD800;");
+  }
   CHECK(dispatch::short_date("2026-09-25T02:01:51Z") == "2026-09-25");
   {
     const std::string shown = dispatch::short_date("Fri, 25 Sep 2026 02:01:51 GMT");
@@ -98,6 +105,25 @@ int main()
     CHECK(feed.items[0].subject == "One");
     CHECK(feed.items[0].link == "http://example.test/1");
     CHECK(feed.items[0].html.find("Hello") != std::string::npos);
+
+    const std::string grin = "\xF0\x9F\x98\x80";
+    const char* cdata =
+        "<?xml version=\"1.0\"?><rss version=\"2.0\"><channel><title>Desk</title>"
+        "<item><title><![CDATA[Hello &#128512;]]></title>"
+        "<link>http://example.test/2</link></item></channel></rss>";
+    const auto cdata_feed = dispatch::parse_feed(cdata, "Fallback");
+    CHECK(cdata_feed.error.empty());
+    CHECK(cdata_feed.items.size() == 1);
+    CHECK(cdata_feed.items[0].subject == "Hello " + grin);
+
+    const char* doubled =
+        "<?xml version=\"1.0\"?><rss version=\"2.0\"><channel><title>Desk</title>"
+        "<item><title>Hello &amp;#x1F600;</title>"
+        "<link>http://example.test/3</link></item></channel></rss>";
+    const auto doubled_feed = dispatch::parse_feed(doubled, "Fallback");
+    CHECK(doubled_feed.error.empty());
+    CHECK(doubled_feed.items.size() == 1);
+    CHECK(doubled_feed.items[0].subject == "Hello " + grin);
   }
 
   {
