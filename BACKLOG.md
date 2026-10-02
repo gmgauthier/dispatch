@@ -1,6 +1,6 @@
 # Dispatch backlog
 
-Current release: **v1.1.10**. Last updated: 2026-10-02.
+Current release: **v1.1.11**. Last updated: 2026-10-02.
 
 Outlook Express shell. Feed (RSS 2 / Atom) and Mail are modes of this binary, not a second guest app. Binary `dispatch`. Suite catalog: `lcos-projects/PRODUCT-BACKLOG.md`. Design: `lcos-projects/DISPATCH.md`. Mail plan: `lcos-projects/DISPATCH-MAIL.md`. Plan: [DEVELOPMENT.md](DEVELOPMENT.md). How to land work: [DEVELOPMENT.md](DEVELOPMENT.md#process) — `feature/` / `fix/` branches, PRs to `master`, lint gate, semver on shipped PRs.
 
@@ -33,6 +33,8 @@ None.
 - Re-theming Liferea
 
 ## Shipped
+
+**v1.1.11** — Send/Recv selects the same extra folder after a newly listed mailbox sorts ahead of it.
 
 **v1.1.10** — A clicked link opens only when it is http or https, so a file URL in a message cannot open a local file.
 
