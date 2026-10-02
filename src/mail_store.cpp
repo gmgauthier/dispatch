@@ -354,6 +354,11 @@ bool expunge_after_trash_copy(const std::string& trash_imap, bool moved, bool co
   return !trash_imap.empty() && !moved && copied;
 }
 
+bool fallback_mailbox_expunge()
+{
+  return false;
+}
+
 void merge_imap_folders(const std::vector<std::string>& imap_names)
 {
   if (g_folders.size() < static_cast<size_t>(kFolderCount))

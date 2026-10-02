@@ -77,6 +77,7 @@ int main()
   CHECK(!dispatch::expunge_after_trash_copy("INBOX.Trash", false, false));
   CHECK(!dispatch::expunge_after_trash_copy("INBOX.Trash", true, false));
   CHECK(dispatch::expunge_after_trash_copy("INBOX.Trash", false, true));
+  CHECK(!dispatch::fallback_mailbox_expunge());
 
   return suite_test::done("trash");
 }

@@ -2,17 +2,9 @@
 
 Reviewed 2026-10-01 against the 1.1.0 sources.
 
-`meson test` runs `tests/test_mail_feed.cpp` (`mail-feed`) and `tests/test_trash.cpp` (`trash`). `trash` checks that `INBOX.Trash`, `INBOX.Sent`, and `[Gmail]/Drafts` fill those slots, that a second trash-like name does not become an extra folder, and that a server delete expunges only after a copy into a known trash mailbox. `mail-feed` checks simple address lists, `Re:` / `Fwd:` prefixes, an RFC 822 round trip, HTML-to-text, an ISO date, an RSS item, and an OPML round trip. The address test uses names without commas. The RFC 822 date check is a prefix, so it does not require the trailing space below. Launching Ephemeris goes through `Glib::shell_quote`. GMime encodes a CRLF in a subject, and libetpan dot-stuffs the SMTP body. Those are not defects.
+`meson test` runs `tests/test_mail_feed.cpp` (`mail-feed`) and `tests/test_trash.cpp` (`trash`). `trash` checks that `INBOX.Trash`, `INBOX.Sent`, and `[Gmail]/Drafts` fill those slots, that a second trash-like name does not become an extra folder, and that a server delete expunges only after a copy into a known trash mailbox. A failed UID EXPUNGE does not fall back to a mailbox-wide EXPUNGE. `mail-feed` checks simple address lists, `Re:` / `Fwd:` prefixes, an RFC 822 round trip, HTML-to-text, an ISO date, an RSS item, and an OPML round trip. The address test uses names without commas. The RFC 822 date check is a prefix, so it does not require the trailing space below. Launching Ephemeris goes through `Glib::shell_quote`. GMime encodes a CRLF in a subject, and libetpan dot-stuffs the SMTP body. Those are not defects.
 
 ## Open
-
-### A failed UID EXPUNGE expunges every deleted message in the mailbox
-
-- Severity: data-loss
-- Confidence: high
-- Where: `src/mail_imap.cpp:134`
-- Trigger: Send/Recv deletes or moves messages on a server where `UID EXPUNGE` fails (no UIDPLUS, or the command returns an error). Other messages in that mailbox are already `\Deleted` and are not in this UID set.
-- Outcome: The fallback is mailbox-wide `EXPUNGE`. Those other messages are removed.
 
 ### Sync writes the local Seen flag back and drops the server flag
 
@@ -95,6 +87,15 @@ Reviewed 2026-10-01 against the 1.1.0 sources.
 - Outcome: After the year token, the skip-spaces loop advances past the following space, and `substr` includes it. The visible date is `25 Sep 2026 ` with a trailing space. An ISO `YYYY-MM-DD` date returns ten characters and is fine.
 
 ## Closed
+
+### A failed UID EXPUNGE expunges every deleted message in the mailbox
+
+- Severity: data-loss
+- Confidence: high
+- Where: `src/mail_imap.cpp` `expunge_uids`
+- Trigger: Send/Recv deletes or moves messages on a server where `UID EXPUNGE` fails (no UIDPLUS, or the command returns an error). Other messages in that mailbox are already `\Deleted` and are not in this UID set.
+- Outcome: The fallback is mailbox-wide `EXPUNGE`. Those other messages are removed.
+- Fixed in v1.1.3: UID EXPUNGE is the only expunge. When it fails, the other `\Deleted` messages stay. The UID set keeps the `\Deleted` flag from the store that succeeded.
 
 ### Delete expunges the server message when Trash is not an exact mailbox name
 

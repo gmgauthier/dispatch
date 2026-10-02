@@ -133,7 +133,7 @@ bool expunge_uids(mailimap* imap, const std::vector<uint32_t>& uids)
   mailimap_store_att_flags_free(store);
   if (imap_ok(r))
     r = mailimap_uid_expunge(imap, set);
-  if (!imap_ok(r))
+  if (!imap_ok(r) && fallback_mailbox_expunge())
     r = mailimap_expunge(imap);
   mailimap_set_free(set);
   return imap_ok(r);
