@@ -51,6 +51,11 @@ void load_mail_folders();
 void save_mail_folders();
 void merge_imap_folders(const std::vector<std::string>& imap_names);
 
+/* Index of the folder with this IMAP name, or this local dir when the IMAP
+   name is empty. -1 when neither is present. Built-in slots stay put; extras
+   are sorted by display name, so a stored index is not an identity. */
+int find_mail_folder(const std::string& imap, const std::string& dir);
+
 /* Expunge the source only after COPY into a known trash mailbox. A missing
    trash name, a successful MOVE, or a failed COPY leaves the server message. */
 bool expunge_after_trash_copy(const std::string& trash_imap, bool moved, bool copied);

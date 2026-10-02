@@ -1811,6 +1811,13 @@ void MainWindow::start_mail_sync()
   smtp.starttls = settings_.smtp_tls != "implicit";
   smtp.user = settings_.mail_user;
   smtp.password = settings_.mail_password;
+  sync_keep_imap_.clear();
+  sync_keep_dir_.clear();
+  if (current_folder_ >= 0 && current_folder_ < mail_folder_count()) {
+    const auto& folder = mail_folder(current_folder_);
+    sync_keep_imap_ = folder.imap;
+    sync_keep_dir_ = folder.dir;
+  }
   mail_thread_ = std::thread([this, imap, smtp]() {
     MailSyncJob job;
     if (!smtp.host.empty() && !smtp.user.empty())
@@ -1836,7 +1843,9 @@ void MainWindow::on_mail_sync_done()
     mail_thread_.join();
   mail_syncing_ = false;
   btn_send_recv_.set_sensitive(true);
-  const int keep = current_folder_;
+  int keep = find_mail_folder(sync_keep_imap_, sync_keep_dir_);
+  if (keep < 0)
+    keep = current_folder_;
   fill_mail_folders();
   if (keep >= 0 && keep < mail_folder_count())
     select_mail_folder(keep);

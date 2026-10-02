@@ -241,6 +241,8 @@ class MainWindow : public Gtk::Window {
   bool preview_visible_ = true;
   bool mail_mode_ = true;
   int current_folder_ = 0;
+  std::string sync_keep_imap_;
+  std::string sync_keep_dir_;
   int current_mail_ = -1;
   bool mail_date_newest_first_ = true;
   std::vector<MailMessage> mail_items_;
