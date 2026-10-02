@@ -119,18 +119,55 @@ void compose_toggle_list(const Glib::RefPtr<Gtk::TextBuffer>& buf)
   }
 }
 
+ComposeListReturn compose_list_return(const Glib::ustring& line, int caret)
+{
+  ComposeListReturn out;
+  const bool bullet = line.compare(0, 2, "• ") == 0 || line == "•";
+  if (!bullet)
+    return out;
+  out.handled = true;
+  if (line == "• " || line == "•") {
+    out.erase_line = true;
+    return out;
+  }
+  const int n = static_cast<int>(line.length());
+  if (caret < 2)
+    caret = 2;
+  if (caret > n)
+    caret = n;
+  // A space under the caret is the gap between items, not the next item's text.
+  if (caret < n && line[static_cast<Glib::ustring::size_type>(caret)] == ' ') {
+    out.drop_space = true;
+    ++caret;
+  }
+  out.split_at = caret;
+  return out;
+}
+
 bool compose_list_handle_return(const Glib::RefPtr<Gtk::TextBuffer>& buf)
 {
   Gtk::TextIter a, b;
   paragraph_bounds(buf, a, b);
   const Glib::ustring line = buf->get_text(a, b);
-  if (line.compare(0, 2, "• ") != 0 && line != "•")
+  Gtk::TextIter caret = buf->get_iter_at_mark(buf->get_insert());
+  int offset = static_cast<int>(line.length());
+  if (caret.get_line() == a.get_line())
+    offset = caret.get_line_offset();
+  const ComposeListReturn split = compose_list_return(line, offset);
+  if (!split.handled)
     return false;
-  if (line == "• " || line == "•") {
+  if (split.erase_line) {
     buf->erase(a, b);
     return true;
   }
-  auto after = buf->insert(b, "\n• ");
+  Gtk::TextIter at = a;
+  at.forward_chars(split.split_at);
+  if (split.drop_space) {
+    Gtk::TextIter gap = at;
+    if (gap.backward_char())
+      at = buf->erase(gap, at);
+  }
+  auto after = buf->insert(at, "\n• ");
   buf->place_cursor(after);
   return true;
 }

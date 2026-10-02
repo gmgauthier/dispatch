@@ -117,3 +117,17 @@ dispatch_seen_tests = executable(
   dependencies: [gtkmm, gmime, libxml],
 )
 test('seen', dispatch_seen_tests)
+
+dispatch_compose_tests = executable(
+  'dispatch-compose-tests',
+  'tests/test_compose.cpp',
+  'src/compose_format.cpp',
+  include_directories: inc,
+  dependencies: [gtkmm],
+)
+xvfb = find_program('xvfb-run', required: false)
+if xvfb.found()
+  test('compose', xvfb, args: ['-a', dispatch_compose_tests], timeout: 60)
+else
+  test('compose', dispatch_compose_tests, timeout: 60)
+endif
