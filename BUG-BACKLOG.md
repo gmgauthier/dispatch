@@ -2,17 +2,9 @@
 
 Reviewed 2026-10-01 against the 1.1.0 sources.
 
-`meson test` runs `tests/test_mail_feed.cpp` (`mail-feed`), `tests/test_trash.cpp` (`trash`), and `tests/test_seen.cpp` (`seen`). `trash` checks that `INBOX.Trash`, `INBOX.Sent`, and `[Gmail]/Drafts` fill those slots, that a second trash-like name does not become an extra folder, and that a server delete expunges only after a copy into a known trash mailbox. A failed UID EXPUNGE does not fall back to a mailbox-wide EXPUNGE. `seen` checks that a server Seen flag replaces the filename flag on mail already in the folder, and that Send/Recv stores Seen only for a message marked in Dispatch. `mail-feed` checks simple address lists, `Re:` / `Fwd:` prefixes, an RFC 822 round trip, HTML-to-text, an ISO date, an RSS item, and an OPML round trip. The address test keeps `Doe, Jane <jane@example.com>` as one recipient. The RFC 822 date check is a prefix, so it does not require the trailing space below. Launching Ephemeris goes through `Glib::shell_quote`. GMime encodes a CRLF in a subject, and libetpan dot-stuffs the SMTP body. Those are not defects.
+`meson test` runs `tests/test_mail_feed.cpp` (`mail-feed`), `tests/test_trash.cpp` (`trash`), `tests/test_seen.cpp` (`seen`), and `tests/test_compose.cpp` (`compose`). `compose` checks that Return in the middle of a bullet splits that item, that Return at the end of a bullet starts the next one, and that an empty bullet leaves the list. `trash` checks that `INBOX.Trash`, `INBOX.Sent`, and `[Gmail]/Drafts` fill those slots, that a second trash-like name does not become an extra folder, and that a server delete expunges only after a copy into a known trash mailbox. A failed UID EXPUNGE does not fall back to a mailbox-wide EXPUNGE. `seen` checks that a server Seen flag replaces the filename flag on mail already in the folder, and that Send/Recv stores Seen only for a message marked in Dispatch. `mail-feed` checks simple address lists, `Re:` / `Fwd:` prefixes, an RFC 822 round trip, HTML-to-text, an ISO date, an RSS item, and an OPML round trip. The address test keeps `Doe, Jane <jane@example.com>` as one recipient. The RFC 822 date check is a prefix, so it does not require the trailing space below. Launching Ephemeris goes through `Glib::shell_quote`. GMime encodes a CRLF in a subject, and libetpan dot-stuffs the SMTP body. Those are not defects.
 
 ## Open
-
-### Return in a bullet inserts the new bullet at the end of the line
-
-- Severity: incorrect
-- Confidence: high
-- Where: `src/compose_format.cpp:133`
-- Trigger: In compose, a line `• hello world` with the caret after `hello`. Press Return.
-- Outcome: `paragraph_bounds` sets the insertion point to the end of the paragraph. The line stays `• hello world`, a new `• ` line is added after it, and `world` does not move with the caret. The key is consumed.
 
 ### A clicked mail link can open a local file
 
@@ -47,6 +39,15 @@ Reviewed 2026-10-01 against the 1.1.0 sources.
 - Outcome: After the year token, the skip-spaces loop advances past the following space, and `substr` includes it. The visible date is `25 Sep 2026 ` with a trailing space. An ISO `YYYY-MM-DD` date returns ten characters and is fine.
 
 ## Closed
+
+### Return in a bullet inserts the new bullet at the end of the line
+
+- Severity: incorrect
+- Confidence: high
+- Where: `src/compose_format.cpp` `compose_list_handle_return`
+- Trigger: In compose, a line `• hello world` with the caret after `hello`. Press Return.
+- Outcome: `paragraph_bounds` sets the insertion point to the end of the paragraph. The line stays `• hello world`, a new `• ` line is added after it, and `world` does not move with the caret. The key is consumed.
+- Fixed in v1.1.9: Return splits the bullet at the caret. Text after the caret moves onto the new bullet, and a single space at the caret stays behind as the gap between the items.
 
 ### Unsubscribe during Refresh All writes the fetch into the wrong subscription
 
