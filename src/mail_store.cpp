@@ -242,19 +242,27 @@ std::string safe_dir(const std::string& imap)
   return s;
 }
 
+int role_for_name(const std::string& lower)
+{
+  if (lower == "sent" || lower == "sent messages" || lower == "sent items" || lower == "sent mail")
+    return kFolderSent;
+  if (lower == "drafts" || lower == "draft")
+    return kFolderDrafts;
+  if (lower == "trash" || lower == "deleted" || lower == "deleted messages" ||
+      lower == "deleted items" || lower == "bin")
+    return kFolderTrash;
+  return kFolderExtra;
+}
+
 int role_for_imap(const std::string& imap)
 {
   const std::string l = lower_copy(imap);
   if (l == "inbox")
     return kFolderInbox;
-  if (l == "sent" || l == "sent messages" || l == "sent items" || l == "sent mail")
-    return kFolderSent;
-  if (l == "drafts" || l == "draft")
-    return kFolderDrafts;
-  if (l == "trash" || l == "deleted" || l == "deleted messages" || l == "deleted items" ||
-      l == "bin")
-    return kFolderTrash;
-  return kFolderExtra;
+  const int full = role_for_name(l);
+  if (full != kFolderExtra)
+    return full;
+  return role_for_name(lower_copy(last_component(imap)));
 }
 
 bool skip_imap_name(const std::string& imap)
@@ -339,6 +347,11 @@ void save_mail_folders()
     kf.save_to_file(folders_ini());
   } catch (const Glib::Error&) {
   }
+}
+
+bool expunge_after_trash_copy(const std::string& trash_imap, bool moved, bool copied)
+{
+  return !trash_imap.empty() && !moved && copied;
 }
 
 void merge_imap_folders(const std::vector<std::string>& imap_names)

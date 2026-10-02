@@ -50,6 +50,10 @@ void ensure_maildirs();
 void load_mail_folders();
 void save_mail_folders();
 void merge_imap_folders(const std::vector<std::string>& imap_names);
+
+/* Expunge the source only after COPY into a known trash mailbox. A missing
+   trash name, a successful MOVE, or a failed COPY leaves the server message. */
+bool expunge_after_trash_copy(const std::string& trash_imap, bool moved, bool copied);
 int ensure_archive_folder();
 int mail_folder_count();
 const MailFolderInfo& mail_folder(int index);
