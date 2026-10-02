@@ -27,6 +27,13 @@ struct ParsedFeed {
   std::string error;
 };
 
+/* A fetch whose subscription was removed. on_fetch_done must not store it. */
+constexpr int kFetchDiscard = -2;
+
+/* feeds.erase at gone. Drop a replace index that pointed at gone, and shift
+   a later index down. An index below gone, or a negative append slot, stays. */
+void retarget_fetch_index(int& replace_index, int gone);
+
 std::string html_to_text(const std::string& html);
 std::string short_date(const std::string& raw);
 ParsedFeed parse_feed(const std::string& xml, const std::string& fallback_title);

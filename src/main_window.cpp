@@ -988,6 +988,10 @@ void MainWindow::on_fetch_done()
   set_busy(false);
 
   int idx = job.replace_index;
+  if (idx == kFetchDiscard) {
+    pump_fetch_queue();
+    return;
+  }
   if (!job.error.empty()) {
     set_status("Fetch failed: " + u8(job.error));
     pump_fetch_queue();
@@ -1080,6 +1084,12 @@ void MainWindow::on_unsubscribe()
   }
   const int gone = current_feed_;
   const std::string gone_url = feeds_[static_cast<size_t>(gone)].url.raw();
+  {
+    std::lock_guard<std::mutex> lock(fetch_mutex_);
+    retarget_fetch_index(fetch_job_.replace_index, gone);
+  }
+  for (auto& pending : fetch_queue_)
+    retarget_fetch_index(pending.replace_index, gone);
   feeds_.erase(feeds_.begin() + gone);
   delete_feed_cache(gone_url);
   persist();
