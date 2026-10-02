@@ -1,3 +1,9 @@
+dispatch (1.1.13-1) unstable; urgency=medium
+
+  * Show an RFC 822 date without a trailing space.
+
+ -- Greg Gauthier <gmgauthier@protonmail.com>  Fri, 02 Oct 2026 08:49:32 +0100
+
 dispatch (1.1.12-1) unstable; urgency=medium
 
   * Merge discovered mailboxes on the UI thread.
