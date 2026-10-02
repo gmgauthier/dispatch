@@ -93,3 +93,14 @@ dispatch_tests = executable(
   dependencies: [gtkmm, libxml, gmime],
 )
 test('mail-feed', dispatch_tests)
+
+dispatch_trash_tests = executable(
+  'dispatch-trash-tests',
+  'tests/test_trash.cpp',
+  'src/mail_store.cpp',
+  'src/mail_parse.cpp',
+  'src/compose_format.cpp',
+  include_directories: inc,
+  dependencies: [gtkmm, gmime],
+)
+test('trash', dispatch_trash_tests)

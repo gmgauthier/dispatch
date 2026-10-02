@@ -147,20 +147,22 @@ bool move_uids_to_trash(mailimap* imap, const std::vector<uint32_t>& uids,
   mailimap_set* set = uid_set(uids);
   if (!set)
     return false;
-  int r = MAILIMAP_ERROR_BAD_STATE;
-  if (!trash_imap.empty())
-    r = mailimap_uid_move(imap, set, trash_imap.c_str());
-  if (!imap_ok(r) && !trash_imap.empty()) {
-    r = mailimap_uid_copy(imap, set, trash_imap.c_str());
-    if (imap_ok(r)) {
-      mailimap_set_free(set);
-      return expunge_uids(imap, uids);
+  bool moved = false;
+  bool copied = false;
+  if (!trash_imap.empty()) {
+    const int moved_r = mailimap_uid_move(imap, set, trash_imap.c_str());
+    moved = imap_ok(moved_r);
+    if (!moved) {
+      const int copied_r = mailimap_uid_copy(imap, set, trash_imap.c_str());
+      copied = imap_ok(copied_r);
     }
   }
   mailimap_set_free(set);
-  if (imap_ok(r))
+  if (moved)
     return true;
-  return expunge_uids(imap, uids);
+  if (expunge_after_trash_copy(trash_imap, moved, copied))
+    return expunge_uids(imap, uids);
+  return false;
 }
 
 void take_att(mailimap_msg_att* att, uint32_t& uid, const char*& body, size_t& len, bool& seen)

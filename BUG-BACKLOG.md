@@ -2,17 +2,9 @@
 
 Reviewed 2026-10-01 against the 1.1.0 sources.
 
-`meson test` runs `tests/test_mail_feed.cpp` (`mail-feed`). It checks simple address lists, `Re:` / `Fwd:` prefixes, an RFC 822 round trip, HTML-to-text, an ISO date, an RSS item, and an OPML round trip. The address test uses names without commas. The RFC 822 date check is a prefix, so it does not require the trailing space below. Launching Ephemeris goes through `Glib::shell_quote`. GMime encodes a CRLF in a subject, and libetpan dot-stuffs the SMTP body. Those are not defects.
+`meson test` runs `tests/test_mail_feed.cpp` (`mail-feed`) and `tests/test_trash.cpp` (`trash`). `trash` checks that `INBOX.Trash`, `INBOX.Sent`, and `[Gmail]/Drafts` fill those slots, that a second trash-like name does not become an extra folder, and that a server delete expunges only after a copy into a known trash mailbox. `mail-feed` checks simple address lists, `Re:` / `Fwd:` prefixes, an RFC 822 round trip, HTML-to-text, an ISO date, an RSS item, and an OPML round trip. The address test uses names without commas. The RFC 822 date check is a prefix, so it does not require the trailing space below. Launching Ephemeris goes through `Glib::shell_quote`. GMime encodes a CRLF in a subject, and libetpan dot-stuffs the SMTP body. Those are not defects.
 
 ## Open
-
-### Delete expunges the server message when Trash is not an exact mailbox name
-
-- Severity: data-loss
-- Confidence: high
-- Where: `src/mail_store.cpp:254`, `src/mail_imap.cpp:151`
-- Trigger: The account's trash mailbox is `INBOX.Trash`, `INBOX.Deleted`, or `[Gmail]/Trash`. Delete a message (status says it moved to Trash), then Send/Recv.
-- Outcome: `role_for_imap` compares the full IMAP name with `trash`, `deleted`, `deleted messages`, `deleted items`, or `bin`. Those real names become extra folders, and the built-in Trash slot keeps an empty `imap`. `move_uids_to_trash` skips MOVE and COPY when the trash name is empty and calls `expunge_uids`, which stores `\Deleted` and expunges. The server copy is gone. The local file is only in the local Trash directory. The same expunge runs when MOVE and COPY both fail even if a trash name is set.
 
 ### A failed UID EXPUNGE expunges every deleted message in the mailbox
 
@@ -104,4 +96,11 @@ Reviewed 2026-10-01 against the 1.1.0 sources.
 
 ## Closed
 
-None.
+### Delete expunges the server message when Trash is not an exact mailbox name
+
+- Severity: data-loss
+- Confidence: high
+- Where: `src/mail_store.cpp` `role_for_imap`, `src/mail_imap.cpp` `move_uids_to_trash`
+- Trigger: The account's trash mailbox is `INBOX.Trash`, `INBOX.Deleted`, or `[Gmail]/Trash`. Delete a message (status says it moved to Trash), then Send/Recv.
+- Outcome: `role_for_imap` compares the full IMAP name with `trash`, `deleted`, `deleted messages`, `deleted items`, or `bin`. Those real names become extra folders, and the built-in Trash slot keeps an empty `imap`. `move_uids_to_trash` skips MOVE and COPY when the trash name is empty and calls `expunge_uids`, which stores `\Deleted` and expunges. The server copy is gone. The local file is only in the local Trash directory. The same expunge runs when MOVE and COPY both fail even if a trash name is set.
+- Fixed in v1.1.2: The leaf name fills the Trash, Sent, or Drafts slot, so `INBOX.Trash` and `[Gmail]/Trash` are the trash mailbox. A delete with no trash mailbox, or a MOVE and COPY that both fail, leaves the server message. A successful COPY still expunges the source.
