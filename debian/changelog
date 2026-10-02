@@ -1,3 +1,9 @@
+dispatch (1.1.12-1) unstable; urgency=medium
+
+  * Merge discovered mailboxes on the UI thread.
+
+ -- Greg Gauthier <gmgauthier@protonmail.com>  Fri, 02 Oct 2026 08:42:35 +0100
+
 dispatch (1.1.11-1) unstable; urgency=medium
 
   * Select the same extra folder after Send/Recv sorts the list.

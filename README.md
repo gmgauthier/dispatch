@@ -14,7 +14,7 @@ LCOS itself: [https://github.com/BryanLunduke/LCOS](https://github.com/BryanLund
 
 ## Status
 
-**v1.1.11.** Send/Recv keeps the open extra folder when a new mailbox sorts ahead of it. A clicked link opens only for http and https. Return in the middle of a bullet splits that item. Unsubscribing during a refresh does not store that fetch on another feed. An HTML-only reply quotes decoded text. A numeric entity above the BMP is four UTF-8 bytes. A comma in a display name stays with that mailbox. A server Seen flag stays on mail already in the folder. A failed UID EXPUNGE leaves the other deleted messages. A trash mailbox such as `INBOX.Trash` is used instead of expunging the message. Outlook Express-shaped feed reader and mail client. Inbox right-click: archive, move to folder, Trash. Headless test suite and BUG-BACKLOG.md. See [INSTALL.md](INSTALL.md).
+**v1.1.12.** Send/Recv merges new mailboxes on the window thread. Send/Recv keeps the open extra folder when a new mailbox sorts ahead of it. A clicked link opens only for http and https. Return in the middle of a bullet splits that item. Unsubscribing during a refresh does not store that fetch on another feed. An HTML-only reply quotes decoded text. A numeric entity above the BMP is four UTF-8 bytes. A comma in a display name stays with that mailbox. A server Seen flag stays on mail already in the folder. A failed UID EXPUNGE leaves the other deleted messages. A trash mailbox such as `INBOX.Trash` is used instead of expunging the message. Outlook Express-shaped feed reader and mail client. Inbox right-click: archive, move to folder, Trash. Headless test suite and BUG-BACKLOG.md. See [INSTALL.md](INSTALL.md).
 
 | Doc | What |
 |---|---|
