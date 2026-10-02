@@ -1,3 +1,9 @@
+dispatch (1.1.5-1) unstable; urgency=medium
+
+  * Keep a comma inside a display name with its mailbox.
+
+ -- Greg Gauthier <gmgauthier@protonmail.com>  Fri, 02 Oct 2026 08:06:01 +0100
+
 dispatch (1.1.4-1) unstable; urgency=medium
 
   * Keep a server Seen flag on mail already in the folder.

@@ -12,7 +12,7 @@ Catalog note: `lcos-projects/DISPATCH.md`.
 
 ## Status (2026-10-02)
 
-**v1.1.4.** A server Seen flag stays on mail already in the folder. A failed UID EXPUNGE leaves the other deleted messages. A trash mailbox such as `INBOX.Trash` is used instead of expunging the message. Feed M0–M6 plus Mail M0–M7, IMAP folders, OE headers, server flags, feed item cache. Inbox context menu. Headless test suite and BUG-BACKLOG.md. Tag `v1.1.4`.
+**v1.1.5.** A comma in a display name stays with that mailbox. A server Seen flag stays on mail already in the folder. A failed UID EXPUNGE leaves the other deleted messages. A trash mailbox such as `INBOX.Trash` is used instead of expunging the message. Feed M0–M6 plus Mail M0–M7, IMAP folders, OE headers, server flags, feed item cache. Inbox context menu. Headless test suite and BUG-BACKLOG.md. Tag `v1.1.5`.
 
 ## 1. Locked decisions
 
