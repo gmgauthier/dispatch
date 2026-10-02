@@ -18,6 +18,31 @@ int main()
     CHECK(addrs[1] == "b@b.test");
     CHECK(addrs[2] == "plain@c.test");
     CHECK(dispatch::split_addresses("").empty());
+
+    const auto doe = dispatch::split_addresses(
+        "Doe, Jane <jane@example.com>, \"Roe, Bob\" <bob@example.com>; plain@c.test");
+    CHECK(doe.size() == 3);
+    CHECK(doe[0] == "jane@example.com");
+    CHECK(doe[1] == "bob@example.com");
+    CHECK(doe[2] == "plain@c.test");
+    const auto doubled = dispatch::split_addresses("a@b.test,,c@d.test");
+    CHECK(doubled.size() == 2);
+    CHECK(doubled[0] == "a@b.test");
+    CHECK(doubled[1] == "c@d.test");
+    const auto angled = dispatch::split_addresses("Weird <doe,jane@example.com>");
+    CHECK(angled.size() == 1);
+    CHECK(angled[0] == "doe,jane@example.com");
+
+    const std::string letter = dispatch::build_rfc822("me@dispatch.test", doe, {}, "Hello",
+                                                      "Plain body", "");
+    std::string from;
+    std::vector<std::string> rcpt;
+    dispatch::parse_rfc822_envelope(letter, from, rcpt);
+    CHECK(from == "me@dispatch.test");
+    CHECK(rcpt.size() == 3);
+    CHECK(rcpt[0] == "jane@example.com");
+    CHECK(rcpt[1] == "bob@example.com");
+    CHECK(rcpt[2] == "plain@c.test");
   }
 
   CHECK(dispatch::with_re_prefix("Hello") == "Re: Hello");

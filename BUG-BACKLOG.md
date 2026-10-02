@@ -2,17 +2,9 @@
 
 Reviewed 2026-10-01 against the 1.1.0 sources.
 
-`meson test` runs `tests/test_mail_feed.cpp` (`mail-feed`), `tests/test_trash.cpp` (`trash`), and `tests/test_seen.cpp` (`seen`). `trash` checks that `INBOX.Trash`, `INBOX.Sent`, and `[Gmail]/Drafts` fill those slots, that a second trash-like name does not become an extra folder, and that a server delete expunges only after a copy into a known trash mailbox. A failed UID EXPUNGE does not fall back to a mailbox-wide EXPUNGE. `seen` checks that a server Seen flag replaces the filename flag on mail already in the folder, and that Send/Recv stores Seen only for a message marked in Dispatch. `mail-feed` checks simple address lists, `Re:` / `Fwd:` prefixes, an RFC 822 round trip, HTML-to-text, an ISO date, an RSS item, and an OPML round trip. The address test uses names without commas. The RFC 822 date check is a prefix, so it does not require the trailing space below. Launching Ephemeris goes through `Glib::shell_quote`. GMime encodes a CRLF in a subject, and libetpan dot-stuffs the SMTP body. Those are not defects.
+`meson test` runs `tests/test_mail_feed.cpp` (`mail-feed`), `tests/test_trash.cpp` (`trash`), and `tests/test_seen.cpp` (`seen`). `trash` checks that `INBOX.Trash`, `INBOX.Sent`, and `[Gmail]/Drafts` fill those slots, that a second trash-like name does not become an extra folder, and that a server delete expunges only after a copy into a known trash mailbox. A failed UID EXPUNGE does not fall back to a mailbox-wide EXPUNGE. `seen` checks that a server Seen flag replaces the filename flag on mail already in the folder, and that Send/Recv stores Seen only for a message marked in Dispatch. `mail-feed` checks simple address lists, `Re:` / `Fwd:` prefixes, an RFC 822 round trip, HTML-to-text, an ISO date, an RSS item, and an OPML round trip. The address test keeps `Doe, Jane <jane@example.com>` as one recipient. The RFC 822 date check is a prefix, so it does not require the trailing space below. Launching Ephemeris goes through `Glib::shell_quote`. GMime encodes a CRLF in a subject, and libetpan dot-stuffs the SMTP body. Those are not defects.
 
 ## Open
-
-### A comma inside a display name becomes a recipient
-
-- Severity: incorrect
-- Confidence: high
-- Where: `src/mail_parse.cpp:303`, `src/mail_smtp.cpp:78`
-- Trigger: To `Doe, Jane <jane@example.com>`, or pick an Ephemeris contact whose name contains a comma. Press Send.
-- Outcome: `split_addresses` splits on every comma and semicolon, then takes the text inside `<...>`. The list is `Doe` and `jane@example.com`. SMTP issues `RCPT TO` for `Doe` first and, on failure, aborts the rest. The message stays in Outbox. `jane@example.com` is never tried when the first RCPT is rejected.
 
 ### A non-BMP numeric entity that survives XML parsing becomes invalid UTF-8
 
@@ -79,6 +71,15 @@ Reviewed 2026-10-01 against the 1.1.0 sources.
 - Outcome: After the year token, the skip-spaces loop advances past the following space, and `substr` includes it. The visible date is `25 Sep 2026 ` with a trailing space. An ISO `YYYY-MM-DD` date returns ten characters and is fine.
 
 ## Closed
+
+### A comma inside a display name becomes a recipient
+
+- Severity: incorrect
+- Confidence: high
+- Where: `src/mail_parse.cpp` `split_addresses`, `src/mail_smtp.cpp` `smtp_send`
+- Trigger: To `Doe, Jane <jane@example.com>`, or pick an Ephemeris contact whose name contains a comma. Press Send.
+- Outcome: `split_addresses` splits on every comma and semicolon, then takes the text inside `<...>`. The list is `Doe` and `jane@example.com`. SMTP issues `RCPT TO` for `Doe` first and, on failure, aborts the rest. The message stays in Outbox. `jane@example.com` is never tried when the first RCPT is rejected.
+- Fixed in v1.1.5: A comma or semicolon separates addresses only after the chunk already holds a mailbox. `Doe, Jane <jane@example.com>` is one recipient, `jane@example.com`.
 
 ### Sync writes the local Seen flag back and drops the server flag
 
