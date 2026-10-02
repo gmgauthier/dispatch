@@ -6,14 +6,6 @@ Reviewed 2026-10-01 against the 1.1.0 sources.
 
 ## Open
 
-### Reply and Forward of an HTML-only message quote the entities
-
-- Severity: incorrect
-- Confidence: high
-- Where: `src/mail_parse.cpp:91`, `src/mail_parse.cpp:226`
-- Trigger: Open a message that has `text/html` and no `text/plain` part, whose body contains `Tom &amp; Jerry`. Reply or Forward.
-- Outcome: The mail-side `html_to_text` strips tags and copies entity text unchanged. The quote contains `Tom &amp; Jerry`. A `multipart/alternative` that includes `text/plain` uses the plain part and does not hit this. The feed parser's `html_to_text` does decode entities. This copy does not.
-
 ### Unsubscribe during Refresh All writes the fetch into the wrong subscription
 
 - Severity: data-loss
@@ -63,6 +55,15 @@ Reviewed 2026-10-01 against the 1.1.0 sources.
 - Outcome: After the year token, the skip-spaces loop advances past the following space, and `substr` includes it. The visible date is `25 Sep 2026 ` with a trailing space. An ISO `YYYY-MM-DD` date returns ten characters and is fine.
 
 ## Closed
+
+### Reply and Forward of an HTML-only message quote the entities
+
+- Severity: incorrect
+- Confidence: high
+- Where: `src/mail_parse.cpp` `parse_rfc822`
+- Trigger: Open a message that has `text/html` and no `text/plain` part, whose body contains `Tom &amp; Jerry`. Reply or Forward.
+- Outcome: The mail-side `html_to_text` strips tags and copies entity text unchanged. The quote contains `Tom &amp; Jerry`. A `multipart/alternative` that includes `text/plain` uses the plain part and does not hit this. The feed parser's `html_to_text` does decode entities. This copy does not.
+- Fixed in v1.1.7: An HTML-only body is quoted with the feed text decoder, so `Tom &amp; Jerry` becomes `Tom & Jerry`. A `multipart/alternative` that has `text/plain` still quotes that plain part.
 
 ### A non-BMP numeric entity that survives XML parsing becomes invalid UTF-8
 

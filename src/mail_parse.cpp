@@ -3,6 +3,7 @@
 #include "mail_parse.hpp"
 #include "compose_format.hpp"
 #include "config.hpp"
+#include "feed.hpp"
 
 #include <gmime/gmime.h>
 
@@ -62,35 +63,6 @@ std::string lower_copy(const std::string& s)
   for (char& c : o)
     c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   return o;
-}
-
-std::string html_to_text(const std::string& html)
-{
-  std::string out;
-  out.reserve(html.size());
-  bool in_tag = false;
-  std::string tag;
-  for (char c : html) {
-    if (c == '<') {
-      in_tag = true;
-      tag.clear();
-      continue;
-    }
-    if (c == '>') {
-      in_tag = false;
-      const std::string t = lower_copy(tag);
-      if (t == "br" || t == "br/" || t == "/p" || t == "/div" || t == "/tr" || t == "/h1" ||
-          t == "/h2" || t == "/h3" || t == "p")
-        out += '\n';
-      continue;
-    }
-    if (in_tag) {
-      tag += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-      continue;
-    }
-    out += c;
-  }
-  return out;
 }
 
 std::string trim_copy_local(const std::string& s)

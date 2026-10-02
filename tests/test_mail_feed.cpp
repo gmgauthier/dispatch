@@ -83,6 +83,48 @@ int main()
     CHECK(dispatch::html_to_text("&#8364;") == "\xE2\x82\xAC");
     CHECK(dispatch::html_to_text("&#xD800;") == "&#xD800;");
   }
+  {
+    const char* html_only =
+        "From: Ada <ada@example.com>\r\n"
+        "To: Greg <greg@example.com>\r\n"
+        "Subject: Hi\r\n"
+        "Date: Fri, 02 Oct 2026 08:00:00 +0100\r\n"
+        "Message-ID: <html-only@example.com>\r\n"
+        "MIME-Version: 1.0\r\n"
+        "Content-Type: text/html; charset=UTF-8\r\n"
+        "\r\n"
+        "<p>Tom &amp; Jerry</p>\r\n";
+    dispatch::MailMessage msg;
+    dispatch::parse_rfc822(html_only, msg);
+    CHECK(msg.text.find("Tom & Jerry") != std::string::npos);
+    CHECK(msg.text.find("&amp;") == std::string::npos);
+    const std::string quoted = dispatch::quote_plain(msg.from, msg.date, msg.text);
+    CHECK(quoted.find("> Tom & Jerry") != std::string::npos);
+    CHECK(quoted.find("&amp;") == std::string::npos);
+
+    const char* alternative =
+        "From: Ada <ada@example.com>\r\n"
+        "To: Greg <greg@example.com>\r\n"
+        "Subject: Hi\r\n"
+        "Date: Fri, 02 Oct 2026 08:01:00 +0100\r\n"
+        "Message-ID: <html-alt@example.com>\r\n"
+        "MIME-Version: 1.0\r\n"
+        "Content-Type: multipart/alternative; boundary=bnd\r\n"
+        "\r\n"
+        "--bnd\r\n"
+        "Content-Type: text/plain; charset=UTF-8\r\n"
+        "\r\n"
+        "Tom & Jerry plain\r\n"
+        "--bnd\r\n"
+        "Content-Type: text/html; charset=UTF-8\r\n"
+        "\r\n"
+        "<p>Tom &amp; Jerry html</p>\r\n"
+        "--bnd--\r\n";
+    dispatch::MailMessage alt;
+    dispatch::parse_rfc822(alternative, alt);
+    CHECK(alt.text.find("Tom & Jerry plain") != std::string::npos);
+    CHECK(alt.text.find("html") == std::string::npos);
+  }
   CHECK(dispatch::short_date("2026-09-25T02:01:51Z") == "2026-09-25");
   {
     const std::string shown = dispatch::short_date("Fri, 25 Sep 2026 02:01:51 GMT");
