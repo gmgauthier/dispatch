@@ -429,6 +429,25 @@ int ensure_archive_folder()
   return static_cast<int>(g_folders.size()) - 1;
 }
 
+int find_mail_folder(const std::string& imap, const std::string& dir)
+{
+  if (g_folders.empty())
+    set_defaults();
+  if (!imap.empty()) {
+    for (int i = 0; i < static_cast<int>(g_folders.size()); ++i) {
+      if (g_folders[static_cast<size_t>(i)].imap == imap)
+        return i;
+    }
+  }
+  if (!dir.empty()) {
+    for (int i = 0; i < static_cast<int>(g_folders.size()); ++i) {
+      if (g_folders[static_cast<size_t>(i)].dir == dir)
+        return i;
+    }
+  }
+  return -1;
+}
+
 int mail_folder_count()
 {
   if (g_folders.empty())

@@ -141,3 +141,15 @@ dispatch_link_tests = executable(
   dependencies: [gtkmm, libxml, libsoup],
 )
 test('links', dispatch_link_tests)
+
+dispatch_folder_tests = executable(
+  'dispatch-folder-tests',
+  'tests/test_folders.cpp',
+  'src/mail_store.cpp',
+  'src/mail_parse.cpp',
+  'src/compose_format.cpp',
+  'src/feed.cpp',
+  include_directories: inc,
+  dependencies: [gtkmm, gmime, libxml],
+)
+test('folders', dispatch_folder_tests)

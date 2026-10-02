@@ -2,17 +2,9 @@
 
 Reviewed 2026-10-01 against the 1.1.0 sources.
 
-`meson test` runs `tests/test_mail_feed.cpp` (`mail-feed`), `tests/test_trash.cpp` (`trash`), `tests/test_seen.cpp` (`seen`), `tests/test_compose.cpp` (`compose`), and `tests/test_links.cpp` (`links`). `compose` checks that Return in the middle of a bullet splits that item, that Return at the end of a bullet starts the next one, and that an empty bullet leaves the list. `links` checks that a `file:` URL, a bare local path, and any other non-http scheme are dropped, and that an http or https link still resolves. `trash` checks that `INBOX.Trash`, `INBOX.Sent`, and `[Gmail]/Drafts` fill those slots, that a second trash-like name does not become an extra folder, and that a server delete expunges only after a copy into a known trash mailbox. A failed UID EXPUNGE does not fall back to a mailbox-wide EXPUNGE. `seen` checks that a server Seen flag replaces the filename flag on mail already in the folder, and that Send/Recv stores Seen only for a message marked in Dispatch. `mail-feed` checks simple address lists, `Re:` / `Fwd:` prefixes, an RFC 822 round trip, HTML-to-text, an ISO date, an RSS item, and an OPML round trip. The address test keeps `Doe, Jane <jane@example.com>` as one recipient. The RFC 822 date check is a prefix, so it does not require the trailing space below. Launching Ephemeris goes through `Glib::shell_quote`. GMime encodes a CRLF in a subject, and libetpan dot-stuffs the SMTP body. Those are not defects.
+`meson test` runs `tests/test_mail_feed.cpp` (`mail-feed`), `tests/test_trash.cpp` (`trash`), `tests/test_seen.cpp` (`seen`), `tests/test_compose.cpp` (`compose`), `tests/test_links.cpp` (`links`), and `tests/test_folders.cpp` (`folders`). `compose` checks that Return in the middle of a bullet splits that item, that Return at the end of a bullet starts the next one, and that an empty bullet leaves the list. `links` checks that a `file:` URL, a bare local path, and any other non-http scheme are dropped, and that an http or https link still resolves. `folders` checks that a new extra mailbox which sorts ahead of the open one does not leave that index pointing at the new mailbox. `trash` checks that `INBOX.Trash`, `INBOX.Sent`, and `[Gmail]/Drafts` fill those slots, that a second trash-like name does not become an extra folder, and that a server delete expunges only after a copy into a known trash mailbox. A failed UID EXPUNGE does not fall back to a mailbox-wide EXPUNGE. `seen` checks that a server Seen flag replaces the filename flag on mail already in the folder, and that Send/Recv stores Seen only for a message marked in Dispatch. `mail-feed` checks simple address lists, `Re:` / `Fwd:` prefixes, an RFC 822 round trip, HTML-to-text, an ISO date, an RSS item, and an OPML round trip. The address test keeps `Doe, Jane <jane@example.com>` as one recipient. The RFC 822 date check is a prefix, so it does not require the trailing space below. Launching Ephemeris goes through `Glib::shell_quote`. GMime encodes a CRLF in a subject, and libetpan dot-stuffs the SMTP body. Those are not defects.
 
 ## Open
-
-### Send/Recv can select a different extra folder at the same index
-
-- Severity: incorrect
-- Confidence: high
-- Where: `src/mail_store.cpp:379`, `src/main_window.cpp:1829`
-- Trigger: View an extra mailbox (index at or past the built-in slots). Send/Recv while LIST returns a new mailbox whose display name sorts before that folder.
-- Outcome: Built-in slots stay put. Extras are re-sorted on every sync. The UI restores the integer index, so the row now shows the newly inserted mailbox. Delete, Move, and the message list act on that folder.
 
 ### The folder list is mutated on the sync thread while the UI reads it
 
@@ -31,6 +23,15 @@ Reviewed 2026-10-01 against the 1.1.0 sources.
 - Outcome: After the year token, the skip-spaces loop advances past the following space, and `substr` includes it. The visible date is `25 Sep 2026 ` with a trailing space. An ISO `YYYY-MM-DD` date returns ten characters and is fine.
 
 ## Closed
+
+### Send/Recv can select a different extra folder at the same index
+
+- Severity: incorrect
+- Confidence: high
+- Where: `src/mail_store.cpp` `merge_imap_folders`, `src/main_window.cpp` `on_mail_sync_done`
+- Trigger: View an extra mailbox (index at or past the built-in slots). Send/Recv while LIST returns a new mailbox whose display name sorts before that folder.
+- Outcome: Built-in slots stay put. Extras are re-sorted on every sync. The UI restores the integer index, so the row now shows the newly inserted mailbox. Delete, Move, and the message list act on that folder.
+- Fixed in v1.1.11: Send/Recv remembers the open folder by its IMAP name, or by its local directory when that name is empty, and selects that folder again after the extra list is sorted.
 
 ### A clicked mail link can open a local file
 
