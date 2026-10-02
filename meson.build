@@ -1,7 +1,7 @@
 project(
   'dispatch',
   'cpp',
-  version: '1.1.5',
+  version: '1.1.6',
   license: 'Unlicense',
   meson_version: '>=0.56',
   default_options: [
