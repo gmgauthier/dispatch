@@ -432,14 +432,20 @@ std::string short_date(const std::string& raw)
   while (i < rest.size() && tokens < 3) {
     if (rest[i] == ' ') {
       ++tokens;
+      // The space after the year is the end of the date, not part of it.
+      if (tokens >= 3)
+        break;
       while (i < rest.size() && rest[i] == ' ')
         ++i;
     } else {
       ++i;
     }
   }
-  if (tokens >= 2)
+  if (tokens >= 2) {
+    while (i > 0 && rest[i - 1] == ' ')
+      --i;
     return rest.substr(0, i);
+  }
   if (rest.size() > 16)
     return rest.substr(0, 16);
   return rest;

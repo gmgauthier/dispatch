@@ -146,10 +146,20 @@ int main()
     CHECK(alt.text.find("html") == std::string::npos);
   }
   CHECK(dispatch::short_date("2026-09-25T02:01:51Z") == "2026-09-25");
+  CHECK(dispatch::short_date("2026-09-25") == "2026-09-25");
+  CHECK(dispatch::short_date("Fri, 25 Sep 2026 02:01:51 GMT") == "25 Sep 2026");
+  CHECK(dispatch::short_date("25 Sep 2026 02:01:51 GMT") == "25 Sep 2026");
+  CHECK(dispatch::short_date("Fri, 25 Sep 2026") == "25 Sep 2026");
+  CHECK(dispatch::short_date("  Fri, 25 Sep 2026 02:01:51 GMT  ") == "25 Sep 2026");
+  CHECK(dispatch::short_date("Fri,  2 Jan 2026 00:00:00 +0000") == "2 Jan 2026");
+  CHECK(dispatch::short_date("Fri, 02 Oct 2026 08:01:00 +0100") == "02 Oct 2026");
   {
-    const std::string shown = dispatch::short_date("Fri, 25 Sep 2026 02:01:51 GMT");
-    CHECK(shown.compare(0, 11, "25 Sep 2026") == 0);
+    const std::string spaced = dispatch::short_date("Fri, 25  Sep   2026    02:01:51 GMT");
+    CHECK(spaced == "25  Sep   2026");
+    CHECK(!spaced.empty() && spaced.back() != ' ');
   }
+  CHECK(dispatch::short_date("25 Sep") == "25 Sep");
+  CHECK(dispatch::short_date("abcdefghijklmnopqr") == "abcdefghijklmnop");
 
   {
     const auto empty = dispatch::parse_feed("", "Fallback");
@@ -166,7 +176,22 @@ int main()
     CHECK(feed.items.size() == 1);
     CHECK(feed.items[0].subject == "One");
     CHECK(feed.items[0].link == "http://example.test/1");
+    CHECK(feed.items[0].date == "25 Sep 2026");
     CHECK(feed.items[0].html.find("Hello") != std::string::npos);
+
+    const char* dated =
+        "<?xml version=\"1.0\"?><rss version=\"2.0\"><channel><title>Desk</title>"
+        "<item><title>Rfc</title>"
+        "<pubDate>Fri, 02 Oct 2026 08:01:00 +0100</pubDate>"
+        "<updated>2026-10-02T08:01:00Z</updated></item>"
+        "<item><title>Iso</title>"
+        "<updated>2026-10-03T08:01:00Z</updated></item>"
+        "</channel></rss>";
+    const auto dated_feed = dispatch::parse_feed(dated, "Fallback");
+    CHECK(dated_feed.error.empty());
+    CHECK(dated_feed.items.size() == 2);
+    CHECK(dated_feed.items[0].date == "02 Oct 2026");
+    CHECK(dated_feed.items[1].date == "2026-10-03");
 
     const std::string grin = "\xF0\x9F\x98\x80";
     const char* cdata =
