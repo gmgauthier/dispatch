@@ -12,7 +12,7 @@ Catalog note: `lcos-projects/DISPATCH.md`.
 
 ## Status (2026-10-02)
 
-**v1.1.6.** A numeric entity above the BMP is four UTF-8 bytes. A comma in a display name stays with that mailbox. A server Seen flag stays on mail already in the folder. A failed UID EXPUNGE leaves the other deleted messages. A trash mailbox such as `INBOX.Trash` is used instead of expunging the message. Feed M0–M6 plus Mail M0–M7, IMAP folders, OE headers, server flags, feed item cache. Inbox context menu. Headless test suite and BUG-BACKLOG.md. Tag `v1.1.6`.
+**v1.1.7.** An HTML-only reply quotes decoded text. A numeric entity above the BMP is four UTF-8 bytes. A comma in a display name stays with that mailbox. A server Seen flag stays on mail already in the folder. A failed UID EXPUNGE leaves the other deleted messages. A trash mailbox such as `INBOX.Trash` is used instead of expunging the message. Feed M0–M6 plus Mail M0–M7, IMAP folders, OE headers, server flags, feed item cache. Inbox context menu. Headless test suite and BUG-BACKLOG.md. Tag `v1.1.7`.
 
 ## 1. Locked decisions
 
