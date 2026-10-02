@@ -16,6 +16,10 @@
 
 namespace dispatch {
 
+// http or https URL for a clicked link. A file: URL, a bare path, and any other
+// scheme come back empty so preview cannot open a local file.
+std::string resolve_link(const std::string& src, const std::string& base_url);
+
 class BodyView : public Gtk::TextView {
  public:
   BodyView();

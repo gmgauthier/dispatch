@@ -174,6 +174,35 @@ Glib::RefPtr<Gdk::Pixbuf> pixbuf_from_bytes(const std::string& bytes)
   }
 }
 
+bool scheme_name(const std::string& url, std::string& scheme, size_t& colon)
+{
+  colon = url.find(':');
+  if (colon == std::string::npos || colon == 0)
+    return false;
+  if (url.compare(0, 2, "//") == 0)
+    return false;
+  for (size_t i = 0; i < colon; ++i) {
+    const unsigned char c = static_cast<unsigned char>(url[i]);
+    if (!(std::isalnum(c) || c == '+' || c == '-' || c == '.'))
+      return false;
+  }
+  scheme = url.substr(0, colon);
+  for (char& c : scheme)
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return true;
+}
+
+bool http_scheme(const std::string& url)
+{
+  std::string scheme;
+  size_t colon = 0;
+  if (!scheme_name(url, scheme, colon))
+    return false;
+  if (scheme != "http" && scheme != "https")
+    return false;
+  return url.compare(colon, 3, "://") == 0;
+}
+
 }  // namespace
 
 BodyView::BodyView()
@@ -610,7 +639,7 @@ void BodyView::insert_media_button(const std::string& url, const std::string& ki
 
 void BodyView::open_uri(const std::string& uri, const std::string& mime)
 {
-  if (uri.empty())
+  if (!http_scheme(uri))
     return;
   if (!mime.empty()) {
     try {
@@ -662,38 +691,49 @@ std::string collapse_slashes(const std::string& url)
   return out;
 }
 
-std::string BodyView::resolve(const std::string& src) const
+std::string resolve_link(const std::string& src, const std::string& base_url)
 {
   if (src.empty())
     return {};
-  if (src.compare(0, 7, "http://") == 0 || src.compare(0, 8, "https://") == 0)
+  std::string scheme;
+  size_t colon = 0;
+  if (scheme_name(src, scheme, colon) && scheme != "http" && scheme != "https")
+    return {};
+  if (http_scheme(src))
     return collapse_slashes(src);
   std::string out;
   if (src.compare(0, 2, "//") == 0) {
-    if (base_url_.compare(0, 8, "https://") == 0)
+    if (base_url.compare(0, 8, "https://") == 0)
       out = "https:" + src;
     else
       out = "http:" + src;
-  } else if (base_url_.empty()) {
+  } else if (base_url.empty()) {
     out = src;
   } else {
-    const auto scheme = base_url_.find("://");
-    if (scheme == std::string::npos)
+    const auto scheme_at = base_url.find("://");
+    if (scheme_at == std::string::npos)
       out = src;
     else if (!src.empty() && src[0] == '/') {
-      auto slash = base_url_.find('/', scheme + 3);
-      const std::string origin =
-          slash == std::string::npos ? base_url_ : base_url_.substr(0, slash);
+      auto slash = base_url.find('/', scheme_at + 3);
+      const std::string origin = slash == std::string::npos ? base_url : base_url.substr(0, slash);
       out = origin + src;
     } else {
-      auto slash = base_url_.rfind('/');
-      if (slash == std::string::npos || slash < scheme + 3)
-        out = base_url_ + "/" + src;
+      auto slash = base_url.rfind('/');
+      if (slash == std::string::npos || slash < scheme_at + 3)
+        out = base_url + "/" + src;
       else
-        out = base_url_.substr(0, slash + 1) + src;
+        out = base_url.substr(0, slash + 1) + src;
     }
   }
-  return collapse_slashes(out);
+  out = collapse_slashes(out);
+  if (!http_scheme(out))
+    return {};
+  return out;
+}
+
+std::string BodyView::resolve(const std::string& src) const
+{
+  return resolve_link(src, base_url_);
 }
 
 void BodyView::walk(xmlNode* node, int list_depth)
