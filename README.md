@@ -14,7 +14,7 @@ LCOS itself: [https://github.com/BryanLunduke/LCOS](https://github.com/BryanLund
 
 ## Status
 
-**v1.1.3.** A failed UID EXPUNGE leaves the other deleted messages. A trash mailbox such as `INBOX.Trash` is used instead of expunging the message. Outlook Express-shaped feed reader and mail client. Inbox right-click: archive, move to folder, Trash. Headless test suite and BUG-BACKLOG.md. See [INSTALL.md](INSTALL.md).
+**v1.1.4.** A server Seen flag stays on mail already in the folder. A failed UID EXPUNGE leaves the other deleted messages. A trash mailbox such as `INBOX.Trash` is used instead of expunging the message. Outlook Express-shaped feed reader and mail client. Inbox right-click: archive, move to folder, Trash. Headless test suite and BUG-BACKLOG.md. See [INSTALL.md](INSTALL.md).
 
 | Doc | What |
 |---|---|
