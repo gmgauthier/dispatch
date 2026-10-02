@@ -296,36 +296,45 @@ std::string html_to_text(const std::string& html)
     if (e == "hellip")
       return "...";
     if (!e.empty() && e[0] == '#') {
-      int n = 0;
-      if (e.size() > 1 && (e[1] == 'x' || e[1] == 'X')) {
-        for (size_t i = 2; i < e.size(); ++i) {
-          const char c = e[i];
-          n *= 16;
-          if (c >= '0' && c <= '9')
-            n += c - '0';
-          else if (c >= 'a' && c <= 'f')
-            n += 10 + c - 'a';
-          else if (c >= 'A' && c <= 'F')
-            n += 10 + c - 'A';
-        }
-      } else {
-        for (size_t i = 1; i < e.size(); ++i)
-          if (e[i] >= '0' && e[i] <= '9')
-            n = n * 10 + (e[i] - '0');
+      unsigned long n = 0;
+      bool digits = false;
+      const bool hex = e.size() > 1 && (e[1] == 'x' || e[1] == 'X');
+      const size_t start = hex ? 2 : 1;
+      for (size_t i = start; i < e.size(); ++i) {
+        const char c = e[i];
+        int d = -1;
+        if (c >= '0' && c <= '9')
+          d = c - '0';
+        else if (hex && c >= 'a' && c <= 'f')
+          d = 10 + c - 'a';
+        else if (hex && c >= 'A' && c <= 'F')
+          d = 10 + c - 'A';
+        if (d < 0)
+          return {};
+        const unsigned base = hex ? 16u : 10u;
+        if (n > 0x10FFFFUL / base)
+          return {};
+        n = n * base + static_cast<unsigned long>(d);
+        digits = true;
       }
-      if (n <= 0)
+      if (!digits || n == 0 || n > 0x10FFFFUL || (n >= 0xD800UL && n <= 0xDFFFUL))
         return {};
-      if (n < 128)
+      if (n < 0x80)
         return std::string(1, static_cast<char>(n));
-      /* UTF-8 BMP */
       if (n < 0x800) {
         char buf[2] = {static_cast<char>(0xC0 | (n >> 6)), static_cast<char>(0x80 | (n & 0x3F))};
         return std::string(buf, 2);
       }
-      char buf[3] = {static_cast<char>(0xE0 | (n >> 12)),
-                     static_cast<char>(0x80 | ((n >> 6) & 0x3F)),
-                     static_cast<char>(0x80 | (n & 0x3F))};
-      return std::string(buf, 3);
+      if (n < 0x10000) {
+        char buf[3] = {static_cast<char>(0xE0 | (n >> 12)),
+                       static_cast<char>(0x80 | ((n >> 6) & 0x3F)),
+                       static_cast<char>(0x80 | (n & 0x3F))};
+        return std::string(buf, 3);
+      }
+      char buf[4] = {
+          static_cast<char>(0xF0 | (n >> 18)), static_cast<char>(0x80 | ((n >> 12) & 0x3F)),
+          static_cast<char>(0x80 | ((n >> 6) & 0x3F)), static_cast<char>(0x80 | (n & 0x3F))};
+      return std::string(buf, 4);
     }
     return {};
   };

@@ -6,14 +6,6 @@ Reviewed 2026-10-01 against the 1.1.0 sources.
 
 ## Open
 
-### A non-BMP numeric entity that survives XML parsing becomes invalid UTF-8
-
-- Severity: incorrect
-- Confidence: medium
-- Where: `src/feed.cpp:320`
-- Trigger: An RSS or Atom title whose entity is still literal text after libxml, for example `<title><![CDATA[Hello &#128512;]]></title>` or a double-escaped `&amp;#128512;`.
-- Outcome: The encoder's comment says "UTF-8 BMP". Anything at or above U+0800, including U+1F600, is written as three bytes. U+1F600 becomes `FF 98 80` instead of `F0 9F 98 80`. The subject or feed name is not valid UTF-8. A normal `<title>Hello &#128512;</title>` is expanded by libxml before this function and is fine.
-
 ### Reply and Forward of an HTML-only message quote the entities
 
 - Severity: incorrect
@@ -71,6 +63,15 @@ Reviewed 2026-10-01 against the 1.1.0 sources.
 - Outcome: After the year token, the skip-spaces loop advances past the following space, and `substr` includes it. The visible date is `25 Sep 2026 ` with a trailing space. An ISO `YYYY-MM-DD` date returns ten characters and is fine.
 
 ## Closed
+
+### A non-BMP numeric entity that survives XML parsing becomes invalid UTF-8
+
+- Severity: incorrect
+- Confidence: medium
+- Where: `src/feed.cpp` `html_to_text`
+- Trigger: An RSS or Atom title whose entity is still literal text after libxml, for example `<title><![CDATA[Hello &#128512;]]></title>` or a double-escaped `&amp;#128512;`.
+- Outcome: The encoder's comment says "UTF-8 BMP". Anything at or above U+0800, including U+1F600, is written as three bytes. U+1F600 becomes `FF 98 80` instead of `F0 9F 98 80`. The subject or feed name is not valid UTF-8. A normal `<title>Hello &#128512;</title>` is expanded by libxml before this function and is fine.
+- Fixed in v1.1.6: A numeric entity from U+010000 through U+10FFFF is four UTF-8 bytes. U+1F600 is `F0 9F 98 80`. A surrogate, or a value above U+10FFFF, stays as the entity text.
 
 ### A comma inside a display name becomes a recipient
 
