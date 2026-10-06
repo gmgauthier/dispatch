@@ -292,10 +292,12 @@ void ComposeWindow::on_send()
       send_ok_ = r.error.empty();
       send_error_ = r.error;
     }
-    if (r.error.empty())
-      folder_write(kFolderSent, rfc822.data(), rfc822.size(), true);
-    else
+    if (r.error.empty()) {
+      if (!folder_write(kFolderSent, rfc822.data(), rfc822.size(), true))
+        folder_write(kFolderOutbox, rfc822.data(), rfc822.size(), true);
+    } else {
       folder_write(kFolderOutbox, rfc822.data(), rfc822.size(), true);
+    }
     send_done_.emit();
   });
 }
