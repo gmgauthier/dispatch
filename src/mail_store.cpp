@@ -63,6 +63,13 @@ std::string deleted_path(const std::string& dir)
   return Glib::build_filename(folder_dir(dir), ".deleted");
 }
 
+/* A UID moved to another local folder. Send/Recv must not download it back
+ * into the source, and must not treat the move as a server delete. */
+std::string relocated_path(const std::string& dir)
+{
+  return Glib::build_filename(folder_dir(dir), ".relocated");
+}
+
 std::string uidvalidity_path(const std::string& dir)
 {
   return Glib::build_filename(folder_dir(dir), ".uidvalidity");
@@ -115,6 +122,25 @@ void forget_deleted(const std::string& dir, uint32_t uid)
   if (!uids.erase(uid))
     return;
   write_uid_set(deleted_path(dir), uids);
+}
+
+void remember_relocated(const std::string& dir, uint32_t uid)
+{
+  if (uid == 0 || dir.empty())
+    return;
+  auto uids = read_uid_set(relocated_path(dir));
+  uids.insert(uid);
+  write_uid_set(relocated_path(dir), uids);
+}
+
+void forget_relocated(const std::string& dir, uint32_t uid)
+{
+  if (uid == 0 || dir.empty())
+    return;
+  auto uids = read_uid_set(relocated_path(dir));
+  if (!uids.erase(uid))
+    return;
+  write_uid_set(relocated_path(dir), uids);
 }
 
 std::string msgid_from_rfc822(const char* rfc822, size_t len)
@@ -525,6 +551,7 @@ void folder_set_uidvalidity(const std::string& dir, uint32_t uidvalidity)
 void folder_wipe(const std::string& dir)
 {
   ::unlink(deleted_path(dir).c_str());
+  ::unlink(relocated_path(dir).c_str());
   ::unlink(Glib::build_filename(folder_dir(dir), ".seen-local").c_str());
   for (const char* sub : {"cur", "new", "tmp"}) {
     const std::string d = Glib::build_filename(folder_dir(dir), sub);
@@ -549,6 +576,8 @@ std::set<uint32_t> folder_skip_uids(const std::string& dir)
   uids.insert(more.begin(), more.end());
   const auto deleted = read_uid_set(deleted_path(dir));
   uids.insert(deleted.begin(), deleted.end());
+  const auto relocated = read_uid_set(relocated_path(dir));
+  uids.insert(relocated.begin(), relocated.end());
   return uids;
 }
 
@@ -878,12 +907,6 @@ bool folder_move(std::string& path, int dest_folder)
   const std::string parent =
       Glib::path_get_basename(Glib::path_get_dirname(Glib::path_get_dirname(path)));
   const std::string dest_dir = g_folders[static_cast<size_t>(dest_folder)].dir;
-  if (uid && parent != dest_dir)
-    remember_deleted(parent, uid);
-  if (dest_folder == kFolderInbox && uid) {
-    forget_deleted("Inbox", uid);
-    remove_dir_uid_copies("Inbox", uid, path);
-  }
   std::string name = name_only;
   if (name.rfind(":2,") == std::string::npos)
     name += ":2,";
@@ -895,6 +918,21 @@ bool folder_move(std::string& path, int dest_folder)
   if (::rename(path.c_str(), dest.c_str()) != 0)
     return false;
   path = dest;
+  /* Record the source only after the file has moved. Trash is a server
+   * delete. Any other destination stays on the server and is not fetched
+   * back into the folder it left. */
+  if (uid && parent != dest_dir) {
+    if (dest_folder == kFolderTrash)
+      remember_deleted(parent, uid);
+    else
+      remember_relocated(parent, uid);
+  }
+  if (uid) {
+    forget_deleted(dest_dir, uid);
+    forget_relocated(dest_dir, uid);
+  }
+  if (dest_folder == kFolderInbox && uid)
+    remove_dir_uid_copies("Inbox", uid, path);
   return true;
 }
 
