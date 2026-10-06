@@ -4,6 +4,7 @@
 #include "mail_store.hpp"
 
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <unistd.h>
 
@@ -78,6 +79,65 @@ int main()
   CHECK(!dispatch::expunge_after_trash_copy("INBOX.Trash", true, false));
   CHECK(dispatch::expunge_after_trash_copy("INBOX.Trash", false, true));
   CHECK(!dispatch::fallback_mailbox_expunge());
+
+  const char archived[] =
+      "From: Ada <ada@example.com>\r\n"
+      "Subject: Move\r\n"
+      "Message-ID: <move@example.com>\r\n"
+      "\r\n"
+      "Hello\r\n";
+  CHECK(dispatch::folder_write_uid("Inbox", 42, archived, sizeof(archived) - 1, false));
+  std::string path;
+  for (const auto& m : dispatch::load_mail_folder(dispatch::kFolderInbox)) {
+    if (m.uid == 42)
+      path = m.path;
+  }
+  CHECK(!path.empty());
+  const int archive = dispatch::ensure_archive_folder();
+  CHECK(archive >= 0);
+  CHECK(dispatch::folder_move(path, archive));
+  CHECK(dispatch::folder_deleted_uids("Inbox").count(42) == 0);
+  CHECK(dispatch::folder_skip_uids("Inbox").count(42) == 1);
+  CHECK(fs::is_regular_file(path));
+
+  CHECK(dispatch::folder_move(path, dispatch::kFolderTrash));
+  CHECK(dispatch::folder_deleted_uids("Archive").count(42) == 1);
+  CHECK(dispatch::folder_deleted_uids("Trash").count(42) == 0);
+
+  CHECK(dispatch::folder_move(path, dispatch::kFolderInbox));
+  CHECK(dispatch::folder_deleted_uids("Trash").count(42) == 0);
+  CHECK(dispatch::folder_skip_uids("Trash").count(42) == 1);
+  CHECK(dispatch::folder_deleted_uids("Inbox").count(42) == 0);
+  CHECK(fs::is_regular_file(path));
+
+  const char stuck_body[] =
+      "From: Ada <ada@example.com>\r\n"
+      "Subject: Stuck\r\n"
+      "Message-ID: <stuck@example.com>\r\n"
+      "\r\n"
+      "Still here\r\n";
+  CHECK(dispatch::folder_write_uid("Inbox", 7, stuck_body, sizeof(stuck_body) - 1, false));
+  std::string stuck;
+  for (const auto& m : dispatch::load_mail_folder(dispatch::kFolderInbox)) {
+    if (m.uid == 7)
+      stuck = m.path;
+  }
+  CHECK(!stuck.empty());
+  const auto slash = stuck.rfind('/');
+  CHECK(slash != std::string::npos);
+  const std::string blocked =
+      dir.path() + "/dispatch/mail/Archive/cur/" + stuck.substr(slash + 1);
+  CHECK(fs::create_directory(blocked));
+  CHECK(!dispatch::folder_move(stuck, archive));
+  CHECK(fs::is_regular_file(stuck));
+  CHECK(dispatch::folder_deleted_uids("Inbox").count(7) == 0);
+  const std::string relocated = dir.path() + "/dispatch/mail/Inbox/.relocated";
+  if (fs::is_regular_file(relocated)) {
+    std::ifstream in(relocated);
+    std::string line;
+    while (std::getline(in, line))
+      CHECK(line != "7");
+  }
 
   return suite_test::done("trash");
 }
