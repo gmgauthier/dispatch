@@ -2,13 +2,22 @@
 
 Reviewed 2026-10-01 against the 1.1.0 sources.
 
-`meson test` runs `tests/test_mail_feed.cpp` (`mail-feed`), `tests/test_trash.cpp` (`trash`), `tests/test_seen.cpp` (`seen`), `tests/test_compose.cpp` (`compose`), `tests/test_links.cpp` (`links`), and `tests/test_folders.cpp` (`folders`). `compose` checks that Return in the middle of a bullet splits that item, that Return at the end of a bullet starts the next one, and that an empty bullet leaves the list. `links` checks that a `file:` URL, a bare local path, and any other non-http scheme are dropped, and that an http or https link still resolves. `folders` checks that a new extra mailbox which sorts ahead of the open one does not leave that index pointing at the new mailbox, and that planning that list does not change the folders the UI is reading. `trash` checks that `INBOX.Trash`, `INBOX.Sent`, and `[Gmail]/Drafts` fill those slots, that a second trash-like name does not become an extra folder, and that a server delete expunges only after a copy into a known trash mailbox. A failed UID EXPUNGE does not fall back to a mailbox-wide EXPUNGE. Archiving a message does not queue it as deleted, moving it on into Trash does, restoring it from Trash does not, and a rename that cannot land leaves the source unmarked. `seen` checks that a server Seen flag replaces the filename flag on mail already in the folder, and that Send/Recv stores Seen only for a message marked in Dispatch. `mail-feed` checks simple address lists, `Re:` / `Fwd:` prefixes, an RFC 822 round trip, HTML-to-text, an ISO date, an RFC 822 date with no trailing space, an RSS item, and an OPML round trip. The address test keeps `Doe, Jane <jane@example.com>` as one recipient. Launching Ephemeris goes through `Glib::shell_quote`. GMime encodes a CRLF in a subject, and libetpan dot-stuffs the SMTP body. Those are not defects.
+`meson test` runs `tests/test_mail_feed.cpp` (`mail-feed`), `tests/test_trash.cpp` (`trash`), `tests/test_seen.cpp` (`seen`), `tests/test_compose.cpp` (`compose`), `tests/test_links.cpp` (`links`), and `tests/test_folders.cpp` (`folders`). `compose` checks that Return in the middle of a bullet splits that item, that Return at the end of a bullet starts the next one, and that an empty bullet leaves the list. `links` checks that a `file:` URL, a bare local path, and any other non-http scheme are dropped, and that an http or https link still resolves. `folders` checks that a new extra mailbox which sorts ahead of the open one does not leave that index pointing at the new mailbox, and that planning that list does not change the folders the UI is reading. `trash` checks that `INBOX.Trash`, `INBOX.Sent`, and `[Gmail]/Drafts` fill those slots, that a second trash-like name does not become an extra folder, and that a server delete expunges only after a copy into a known trash mailbox. A failed UID EXPUNGE does not fall back to a mailbox-wide EXPUNGE. Archiving a message does not queue it as deleted, moving it on into Trash does, restoring it from Trash does not, and a rename that cannot land leaves the source unmarked. `seen` checks that a server Seen flag replaces the filename flag on mail already in the folder, and that Send/Recv stores Seen only for a message marked in Dispatch. Two Sent copies written in the same second stay as two files. `mail-feed` checks simple address lists, `Re:` / `Fwd:` prefixes, an RFC 822 round trip, HTML-to-text, an ISO date, an RFC 822 date with no trailing space, an RSS item, and an OPML round trip. The address test keeps `Doe, Jane <jane@example.com>` as one recipient. Launching Ephemeris goes through `Glib::shell_quote`. GMime encodes a CRLF in a subject, and libetpan dot-stuffs the SMTP body. Those are not defects.
 
 ## Open
 
 None.
 
 ## Closed
+
+### Two messages sent in the same second share one Sent file
+
+- Severity: data-loss
+- Confidence: high
+- Where: `src/mail_store.cpp` `folder_write`, `src/mail_smtp.cpp` `flush_outbox`
+- Trigger: Send two messages in the same second, or flush two Outbox messages in the same second. Or the Sent write fails.
+- Outcome: The Maildir name is the second, the process id, and the folder index. The second `rename` replaces the first file. `flush_outbox` then deletes the Outbox file even when `folder_write` returns false, so that message has no local copy.
+- Fixed in v1.1.15: Each stored message gets its own name. A failed Sent write leaves the Outbox file in place. A message that was just sent, and could not be stored in Sent, is kept in the Outbox so the copy is not dropped. A later flush can send that copy again.
 
 ### Archive, move, and undelete queue a server delete
 

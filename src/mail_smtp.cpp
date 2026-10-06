@@ -131,7 +131,12 @@ OutboxFlushResult flush_outbox(const SmtpAccount& account)
         out.error = r.error;
       continue;
     }
-    folder_write(kFolderSent, raw.data(), raw.size(), true);
+    if (!folder_write(kFolderSent, raw.data(), raw.size(), true)) {
+      ++out.failed;
+      if (out.error.empty())
+        out.error = "Sent, but the local copy could not be stored";
+      continue;
+    }
     folder_remove(m.path);
     ++out.sent;
   }

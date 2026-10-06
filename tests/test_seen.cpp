@@ -174,5 +174,25 @@ int main()
   CHECK(!dispatch::folder_take_server_seen("Inbox", 0, true));
   CHECK(dispatch::seen_flags_to_store("", on_server).add_seen.empty());
 
+  const char one[] =
+      "From: Ada <ada@example.com>\r\n"
+      "Subject: One\r\n"
+      "Message-ID: <sent-one@example.com>\r\n"
+      "\r\n"
+      "one\r\n";
+  const char two[] =
+      "From: Ada <ada@example.com>\r\n"
+      "Subject: Two\r\n"
+      "Message-ID: <sent-two@example.com>\r\n"
+      "\r\n"
+      "two\r\n";
+  CHECK(dispatch::folder_write(dispatch::kFolderSent, one, sizeof(one) - 1, true));
+  CHECK(dispatch::folder_write(dispatch::kFolderSent, two, sizeof(two) - 1, true));
+  const auto sent = dispatch::load_mail_folder(dispatch::kFolderSent);
+  CHECK(sent.size() == 2);
+  CHECK(sent[0].path != sent[1].path);
+  CHECK(fs::is_regular_file(sent[0].path));
+  CHECK(fs::is_regular_file(sent[1].path));
+
   return suite_test::done("seen");
 }

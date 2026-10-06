@@ -9,6 +9,7 @@
 #include <glibmm/miscutils.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <cstdlib>
 #include <ctime>
@@ -684,9 +685,15 @@ bool folder_write(int folder_index, const char* rfc822, size_t len, bool seen)
     return false;
   const std::string& folder = g_folders[static_cast<size_t>(folder_index)].dir;
   ensure_maildir(folder_dir(folder));
+  struct timespec ts;
+  if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
+    ts.tv_sec = ::time(nullptr);
+    ts.tv_nsec = 0;
+  }
+  static std::atomic<unsigned> seq{0};
   std::ostringstream name;
-  name << static_cast<long>(::time(nullptr)) << ".M" << ::getpid() << "Q" << folder_index
-       << ".dispatch";
+  name << static_cast<long>(ts.tv_sec) << ".M" << static_cast<long>(ts.tv_nsec) << "P" << ::getpid()
+       << "Q" << folder_index << "R" << seq.fetch_add(1) << ".dispatch";
   const std::string tmp = Glib::build_filename(folder_dir(folder), "tmp", name.str());
   {
     std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
