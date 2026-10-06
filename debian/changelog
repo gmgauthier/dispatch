@@ -1,3 +1,9 @@
+dispatch (1.1.16-1) unstable; urgency=medium
+
+  * Leave a stylesheet out of a reply when its tag has attributes.
+
+ -- Greg Gauthier <gmgauthier@protonmail.com>  Tue, 06 Oct 2026 18:04:10 +0100
+
 dispatch (1.1.15-1) unstable; urgency=medium
 
   * Two messages sent in the same second each keep a local copy.
