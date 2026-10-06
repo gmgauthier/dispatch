@@ -266,6 +266,7 @@ std::string html_to_text(const std::string& html)
   bool in_tag = false;
   bool in_ent = false;
   bool skip = false;
+  bool tag_named = false;
   std::string ent;
   std::string tag;
   auto emit = [&](char ch) {
@@ -391,14 +392,18 @@ std::string html_to_text(const std::string& html)
                  t == "pre" || t == "section" || t == "article")
           emit_nl();
         tag.clear();
-      } else if (tag.size() < 24 && ch != ' ' && ch != '\t' && ch != '\n' && ch != '\r') {
+      } else if (!tag_named && tag.size() < 24 && ch != ' ' && ch != '\t' && ch != '\n' &&
+                 ch != '\r') {
         tag.push_back(ch);
+      } else if (!tag.empty() && (ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r')) {
+        tag_named = true;
       }
       continue;
     }
     if (ch == '<') {
       in_tag = true;
       tag.clear();
+      tag_named = false;
       continue;
     }
     if (ch == '&') {

@@ -95,6 +95,10 @@ int main()
     CHECK(untouched == 3);
   }
   CHECK(dispatch::html_to_text("<p>Hi <b>there</b></p>") == "Hi there");
+  CHECK(dispatch::html_to_text("<style type=\"text/css\">body{color:red}</style><p>Hi</p>") == "Hi");
+  CHECK(dispatch::html_to_text("<script type=\"text/javascript\">var x = 1;</script>Hello") ==
+        "Hello");
+  CHECK(dispatch::html_to_text("<style>secret</style>Hi") == "Hi");
   CHECK(dispatch::html_to_text("A &amp; B") == "A & B");
   {
     const std::string grin = "\xF0\x9F\x98\x80";
